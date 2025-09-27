@@ -7,7 +7,7 @@ from tkinter import filedialog,messagebox
 import gc
 import math
 import json
-import neiro
+#import neiro #потом будет использоваться для ии
 # from ctypes import CDLL
 # libC = CDLL("../c++ files/libChess.dll")
 # path_find = libC.path_find
