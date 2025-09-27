@@ -46,7 +46,7 @@ def to_bin(num,b=32):
         try:
             return num.__binNumber__()
         except:
-            raise TypeError("cannot convert type {type(num).__name__}.")
+            raise TypeError(f"cannot convert type {type(num).__name__}.")
 def dectobin(binNum):
     try:
         c = 0
@@ -57,7 +57,7 @@ def dectobin(binNum):
         try:
             dectobin(binNum.__binNumber__())
         except:
-            raise TypeError("cannot convert type {type(binNum).__name__}.")
+            raise TypeError(f"cannot convert type {type(binNum).__name__}.")
 #class
 class binInt(operatorAndEq):
     """number in binary system.
@@ -84,6 +84,11 @@ only positive."""
     def getLI(self):
         pi = 0
         for i in range(self.b):
+            if self.v[i]: pi = i
+        return pi
+    def getStartB(self):
+        pi = 0
+        for i in range(self.b,1, -1):
             if self.v[i]: pi = i
         return pi
     #bin operators
@@ -145,27 +150,28 @@ only positive."""
             newArray = n1.copy()
         else:
             newArray = n1
-        for i in range(1,n2.b):
+        print('mul:', n1, 'and', n2)
+        for i in range(n2.b):
             if n2.v[i]:
-                newArray = newArray+(n1<<i)
+                newArray += n1<<i
         return newArray
-    def __floordiv__(n1,n2,copy = True):
-        n1 = n1.copy()
-        ot = n1.b
-        start = ot-n2.getLI()
-        while start!=0:
-            number = binInt(n1.v[start:ot:])
-            num3 = n2.copy()
-            if num3 <= number:
-                n1.v[start:ot:] = (number-num3).v
-            if n1.v[start:ot:] != 0:
-                st = start
-                start -= ot-start
-                ot = st
-            else:
-                st -= 1
-                start-=1
-        return n1
+    def __floordiv__(n1, n2, copy=True):
+        # Создание копии, если требуется
+        if copy:
+            n1 = n1.copy()
+        if n2 == binInt(0, n2.b):
+            raise ZeroDivisionError()
+        shift = n2.getStartB()
+        n1 = n1 >> shift
+        n2 = n2 >> shift
+        d = n1.copy()
+        c = binInt(0, n2.b)
+        one = binInt(1, n2.b)
+        while d<n2:
+            c += one
+            d -= n2
+        
+        return c
     def __pow__(self,s):
         v = 1
         for i in range(s):
@@ -271,12 +277,13 @@ class binIntPAN(binInt):
         try:   p2 = n2.p
         except:p2 = True
         #v
-        try:   v2 = n2.v.v
+        try:   v2 = n2.v
         except:v2 = n2
         if n1.p == p2:
-            return binIntPAN(n1.v + v2,n1.b,p2)
-        else:
-            return binIntPAN(n1.v - v2,n1.b,n1.p if n1.v>=n1.p else not n1.p)
+            return binIntPAN(n1.v+v2,p=n1.p)
+        if n1.v < v2:
+            return binIntPAN(v2-n1.v, p=p2)
+        return binIntPAN(n1.v-v2, p = n1.p)
     def __sub__(n1,n2):
         #p
         try:   p2 = n2.p
@@ -496,7 +503,7 @@ if you need an analog for user input use AFEI."""
     def __str__(self):
         return f"vector {self.vector}"
     def __repr__(self):
-        return f"vector {self.vector}"
+        return f"vector({self.vector})"
     #сравнивание
     def __eq__(v1,v2): #=
         try:
@@ -716,8 +723,8 @@ def getRandomProcentItem(items,t=1):
 #vector create functions
 def vrange(start,end=False,step=1):
     return Vector(mas = range(start if end else 0,end if end else start,step))
-def vrotate(deg):
-    return Vector2(mas=(math.sin(deg),math.cos(deg)))
+def vrotate(rad):
+    return Vector2(mas=(math.sin(rad),math.cos(rad)))
 def vfromline(l,string):
     return Vector(mas = (eval(string) for i in range(l)))
 class vrandom:
@@ -729,9 +736,10 @@ class vrandom:
         return Vector(t,mas = (getRandomProcentItem(items) for i in range(l)))
 #test
 if __name__ == "__main__":
+    assert VF in Vector.__mro__
     for i in range(5000000): pass
     print(sum(vrange(100)))
-    print("4*2:",(binInt(4,8)*binInt(2,8)))
+    print("4*13:",(binInt(67)//binInt(5)))
     from tests import test_speed as test
     print("test speed add")
     test("Vector(mas=(1,2,3))+Vector(mas=(3,1,5))",globalsNames=globals())
