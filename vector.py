@@ -172,11 +172,22 @@ only positive."""
             d -= n2
         
         return c
-    def __pow__(self,s):
-        v = 1
-        for i in range(s):
-            self *= self
-        return v
+    def __pow__(self,s, copy = True, fast = True):
+        if copy:
+            self = self.copy()
+        if fast:
+            if s == binInt(0, s.b):
+                return binInt(1, self.b)
+            if s.v[0]:
+                return self * self**(s-binInt(1, s.b))
+            else:
+                half = s>>1
+                return half*half
+        else:
+            s2 = self.copy()
+            for i in range(s):
+                self *= s2
+            return self
     #logic operators
     def __eq__(n1,n2): #=
         return n1.v==n2.v
@@ -236,7 +247,21 @@ only positive."""
     def __setitem__(self,index,value):
         self.v[index] = value
     def __str__(self):
-        return str(self.__int__())
+        copy = self.copy()
+        zero = binInt(0, copy.b)
+        ten = binInt(10, copy.b)
+        string = ""
+        while copy != zero:
+            div = copy // ten
+            copy -= div*ten
+            remainder = copy
+            ten_num = remainder//(ten//10)
+            string += str(int(ten_num))
+            ten *= ten
+
+
+
+        return string
     def __repr__(self):
         return f"binInt size {self.b}b array ({self.__int__}) and in binary system ({self.v})"
     #my magic metods
