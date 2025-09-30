@@ -35,7 +35,7 @@ def saveF(game):
         if file_path:
             saveV(game, file_path)
 class game():
-    __slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory','steps','hist','histPos','speed','text','mode')
+    __slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory','steps','hist','histPos','speed','text','mode', 'modes')
     #__slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory')
     def __init__(self,mode,file,text):
         self.root = tk.Tk()
@@ -72,6 +72,7 @@ class game():
         self.hist = histStr(getStringSave(self))
         self.histPos = 1
         self.file = file
+        self.load_modes()
     def create_figure(self,*args,**kvargs):
         self.map.append(figure(self.root,self.canvas,self.pictures,self.iscollide,*args,**kvargs))
     def move_figure(self, idF, step):
@@ -90,6 +91,10 @@ class game():
         self.step = not self.step
         if not self.victory:
             self.canvas.itemconfigure(self.label,text = ("ходят белые" if self.step else "ходят чёрные"))
+    def load_modes(self):
+        self.modes = load_modes()
+        for mode in self.modes:
+            mode.init(self)
     def iscollide(self,pos):
         for ob in self.map:
             if ob.pos == pos:
@@ -293,6 +298,12 @@ class game():
                         saveF(self)
                     elif size/2-size/8<posT.x and posT.x<size/2+size/8:
                         open_file()
+                for mode in self.modes:
+                    try:
+                        mode.click(posT)
+                    except Exception as err:
+                        print(f'[{mode.name}] error in click')
+                        print(f'[{mode.name}] {type(err).__name__}: {err}')
             self.canvas.bind("<ButtonPress-1>",clickReal)
             def Control_H(key):
                 choice = messagebox.askquestion("помошь по шахматам №1", "этот проект маштабен. но давайте объясню с управлением:\n  Control-H это вызвать это\n  Control-z вернуть обратно СВОЙ ход\n  Control-Shift-Z это вернуть всё как было до Control-z\n  Left (стрелочка) - проматывает видио на шаг назад.\n  Right (стрелочка) - проматывает вперёд. если видио закончилось то снимает действее с Left и себя.\n  c - стереть (необратимо) историю. рекомендуется для начала записи видио.\n  m - это переключение режима\n  s - изменяет скорость главного цикла. рекомендуется оставить значение в 20ms\n\nтеперь перейдём к окошкам. вы наверное встретите окошки в которых в скобочках слово и через тире другие слова. если нажмёте да - вы отвечаете окошку на вопрос выделенным словом в скобочках. если ответ нет - то проматывайте (с помошью нет) до нужного слова в скобочках\nпродолжить?")
@@ -305,7 +316,10 @@ class game():
                             if choice == "yes":
                                 choice = messagebox.askquestion("помошь по шахматам №5", "популярные вопросы и ответы на их:\n  можно ли как-то уменьшить и увеличить окно? - нет, нельзя. окно всегда размером 600x600.\n  можно ли цифры и буквы вынести за пределы поля? - нет, нельзя.\n  почему на видео записовоется не то что надо? - сохранение видио это beta функция. сохранение видео пока работает не очень идеально. поэтому можно нажать (в начале записи) С (англискую и маленькую) для исправления этого. также вы возможно столкнулись с багом того что при использовании Control-z не правильно записывается видео.\n  почему это 'видео' .txt файл? - под видио я имею ввиду любую запись множества ходов. если вы хотите видио .mp4 а не .txt который только эта программа прочитать может то я вам могу предложить устоновить программы или использовать сочетания клавишь на windows для записи .mp4 видио.\n  чем bot отличается от bot2? - bot может делать неверные действия но плюс минус правильные а bot2 только самые лучшие как он постчитал. также bot работает намного медленее bot2. советую использовать bot2.\n  почему сочетания клавишь перестают работать? - вы наверное стоите на руской раскладке а не на англиской.\n  как поиграть в эти шахматы онлайн? - у меня есть chess_online это отдельный проект в который вы тоже можете поиграть. покачто от сюда в chess_online перейти нельзя через режимы. надо запускать другую программу.\n  как начать запись видео? - вам не нужно её начинать. она всегда включенна. если вы хотите чтобы всё что раньше записалось удалилось то нажмите C англискую\n\nесли что-то не поняли то нажмите 'да' в этом окошке.")
                                 if choice == "yes":
-                                    messagebox.askquestion("помошь по шахматам №6", "как вижу у вас остались вопросы. задать вы их можете создателю.")
+                                    choice = messagebox.askquestion("помошь по шахматам №6", "Расширения:"+''.join('- '+mode.name+'\n'+mode.discription+'\n' for mode in self.modes)+'если остались вопроссы нажмите "да"')
+
+                                    if choice == "yes":
+                                        messagebox.askquestion("помошь по шахматам №7", "как вижу у вас остались вопросы. задать вы их можете создателю.")
 
             self.root.bind('<Control-h>', Control_H)
             def Control_Z(key):
@@ -348,7 +362,11 @@ class game():
                 saveF()
             self.root.bind("<Control-s>",Control_s)
             def press_m(key):
-                self.mode = multiple_choice("Выбор режима","выберете режим:\n",('play','random','bot', 'bot2', 'bot2 vs bot2','bot_random'))
+                self.mode = multiple_choice("Выбор режима","выберете режим:\n",['play','random','bot', 'bot2', 'bot2 vs bot2','bot_random']+[mode.name for mode in self.modes])
+                if self.mode not in ('play','random','bot', 'bot2', 'bot2 vs bot2','bot_random'):
+                    for mode in self.modes:
+                        if mode.name == self.mode:
+                            mode.start()
                 restart()
             self.root.bind("<m>",press_m)
             def clear_hist(key):
@@ -706,14 +724,55 @@ class game():
                             else:
                                 self.victory = True
                                 self.canvas.itemconfigure(self.label,text = ("белые победили" if not self.step else "чёрные победили"))
-
                     gc.enable()
+                for mode in self.modes:
+                    mode.iteration()
                 self.root.after(self.speed,frame)
             frame()
         else:
             print("такого режима не сушествует.")
         self.root.mainloop()
 hide_console()
+def load_mode(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        text = f.read()
+        
+        # Инициализация пространств имён
+        local_vars = {}
+        global_vars = {}
+        
+        try:
+            # Безопасное выполнение кода с ограничением доступа
+            exec(text, global_vars, local_vars)
+        except Exception as e:
+            print(type(e).__name__+':', e)
+            return
+        try:
+            Mode = local_vars['main']()
+            Mode.name
+            Mode.iteration
+            Mode.click
+            Mode.description
+            Mode.init
+            Mode.start
+        except:
+            print('module not found main')
+            return
+        return Mode
+import os
+def load_modes(folder='./modes'):
+    try:
+        modes = os.listdir(folder)
+    except FileNotFoundError:
+        os.mkdir(folder)
+        load_modes(folder)
+        return
+    modes_exec = []
+    for mode in modes:
+        mode_exec = load_mode(mode)
+        if mode_exec is not None:
+            modes_exec.append(mode_exec)
+    return modes_exec
 mode = multiple_choice("Выбор режима","выберете режим:\n",('play','random','bot', 'bot2', 'bot2 vs bot2','bot_random'))
 messagebox.askquestion("Помошь по шахматам","help - Control-h")
 if messagebox.askyesno("Загрузить?","Загрузить файл?"):
