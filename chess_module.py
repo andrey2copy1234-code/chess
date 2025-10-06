@@ -2,6 +2,7 @@ import vector as v
 #import ArrayC as v
 from tkinter import messagebox
 from time import time
+__version__ = '2.0'
 
 def multiple_choice(title,suppl,items,select_val=True,break_val=None,dialogType="askyesno",dialogFn=None):
     i = -1
@@ -318,7 +319,7 @@ def loaded(game,file,snowError=True):
     try: 
         file = open(file, 'r', encoding='utf-8')
     except:
-        raise NaF_Error("file '{file}' not found")
+        raise NaF_Error(f"file '{file}' not found")
     loadedString(game,file.read(),snowError)
     file.close()
 def loadedString(game,str,snowError=True):
