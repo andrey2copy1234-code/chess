@@ -1,4 +1,5 @@
 import array,math
+__version__ = '2.0'
 
 class operatorAndEq():
     __slots__ = ()
