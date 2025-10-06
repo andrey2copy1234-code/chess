@@ -1,5 +1,6 @@
 import tkinter as tk
 import vector as v
+__vVector__ = v.__version__
 #import ArrayC as v
 import math as m
 from time import time,sleep
@@ -12,9 +13,78 @@ import json
 # libC = CDLL("../c++ files/libChess.dll")
 # path_find = libC.path_find
 
+def is_comp(v, v2):
+    print(f'is_comp({v},{v2})')
+    vglobal, vlocal = v.split('.')
+    v2global, v2local = v2.split('.')
+    vglobal, vlocal = int(vglobal), int(vlocal)
+    v2global, v2local = int(v2global), int(v2local)
+    print(f"is_comp({vglobal}.{vlocal}, {v2global}.{v2local})")
+    if vglobal>=v2global:
+        print('version global big or eq')
+        if vglobal == v2global and vlocal<v2local:
+            print('version eq but not eq')
+            print('return False')
+            return False
+        print('return True')
+        return True
+    print('small version')
+    print('return False')
+    return False
+versions_chess = {'2.1'}
+#вормат vChess: (vModule, vVector)
+comp_table = {
+    '2.1': ('2.0', '2.0')
+}
+class problem_comp():
+    def __init__(self, v1, v2, module):
+        self.v1, self.v2 = v1, v2
+        self.module = module
+    def __str__(self):
+        return f"игра этой версии ({__version__}) не совместима с версией {self.v2} у модуля {self.module}. нужна как минимум версия {self.v1} модуля {self.module}"
+def num_ind(num):
+    return ('одна' if num == 1 else 'ноль') if num<=1 else ('пару' if num == 2 else 'несколько')
+class comp():
+    why: str = 'error'
+    briefly: bool|str = 'error'
+    def __init__(self, why=None, briefly=None):
+        if why:
+            self.why = why
+        if briefly:
+            self.briefly = briefly
+    def calc(self, vChess, vModule, vVector):
+        if vChess in versions_chess:
+            val = comp_table.get(vChess)
+            if val:
+                vModule_comp, vVector_comp = val 
+                problems = []
+                if not is_comp(vModule, vModule_comp):
+                    problems.append(problem_comp(vModule_comp, vModule, 'chess_module'))
+                if not is_comp(vVector, vVector_comp):
+                    problems.append(problem_comp(vVector_comp, vVector, 'vector'))
+                if len(problems) != 0:
+                    num_idn2 = num_ind(len(problems))
+                    self.why = f"произошло {num_idn2} проблем{'a' if num_idn2[-1] == 'a' else ''}:"+''.join('\n*'+str(problem) for problem in problems)
+                    self.briefly = False
+                else:
+                    self.why = f"потому что:\nне произошло ни одной проблеммы совместимости"
+                    self.briefly = True
+
+def get_comp():
+    comp_data = comp()
+    comp_data.calc(__version__, __vModule__, __vVector__)
+    if comp_data.why == 'error' or comp_data.briefly == 'error':
+        return "Error"
+    return f"Данная версия ({__version__}) {'совместима' if comp_data.briefly else 'не совместима'} с модулями.\n {comp_data.why}"
+news = """
+v2.1
+теперь можно посмотреть это.
+"""
+__version__ = '2.1'
 #size = 600
 heightButtons = 50
 from chess_module import *
+from chess_module import __version__ as __vModule__
 
 def saveF(game):
     choice = multiple_choice("сохранение", "как вы хотите сохранить?\n", ('отмена','как файл', 'как видео'))
@@ -316,10 +386,14 @@ class game():
                             if choice == "yes":
                                 choice = messagebox.askquestion("помошь по шахматам №5", "популярные вопросы и ответы на их:\n  можно ли как-то уменьшить и увеличить окно? - нет, нельзя. окно всегда размером 600x600.\n  можно ли цифры и буквы вынести за пределы поля? - нет, нельзя.\n  почему на видео записовоется не то что надо? - сохранение видио это beta функция. сохранение видео пока работает не очень идеально. поэтому можно нажать (в начале записи) С (англискую и маленькую) для исправления этого. также вы возможно столкнулись с багом того что при использовании Control-z не правильно записывается видео.\n  почему это 'видео' .txt файл? - под видио я имею ввиду любую запись множества ходов. если вы хотите видио .mp4 а не .txt который только эта программа прочитать может то я вам могу предложить устоновить программы или использовать сочетания клавишь на windows для записи .mp4 видио.\n  чем bot отличается от bot2? - bot может делать неверные действия но плюс минус правильные а bot2 только самые лучшие как он постчитал. также bot работает намного медленее bot2. советую использовать bot2.\n  почему сочетания клавишь перестают работать? - вы наверное стоите на руской раскладке а не на англиской.\n  как поиграть в эти шахматы онлайн? - у меня есть chess_online это отдельный проект в который вы тоже можете поиграть. покачто от сюда в chess_online перейти нельзя через режимы. надо запускать другую программу.\n  как начать запись видео? - вам не нужно её начинать. она всегда включенна. если вы хотите чтобы всё что раньше записалось удалилось то нажмите C англискую\n\nесли что-то не поняли то нажмите 'да' в этом окошке.")
                                 if choice == "yes":
-                                    choice = messagebox.askquestion("помошь по шахматам №6", "Расширения:"+''.join('- '+mode.name+'\n'+mode.discription+'\n' for mode in self.modes)+'если остались вопроссы нажмите "да"')
+                                    choice = messagebox.askquestion("помошь по шахматам №6", "Расширения:\n"+''.join('- '+mode.name+'\n'+mode.discription+'\n' for mode in self.modes)+('их нет' if len(self.modes) == 0 else '')+'если остались вопроссы нажмите "да"')
 
                                     if choice == "yes":
-                                        messagebox.askquestion("помошь по шахматам №7", "как вижу у вас остались вопросы. задать вы их можете создателю.")
+                                        choice = messagebox.askquestion("помошь по шахматам №7", f"Версии (сейчас версия {__version__}):{news}\nесли остались вопросы нажмите 'да'")
+                                        if choice:
+                                            choice = messagebox.askquestion("помошь по шахматам №8", f"Совместимость:\n{get_comp()}\nесли остались вопросы нажмите 'да'")
+                                            if choice == "yes":
+                                                messagebox.askquestion("помошь по шахматам №9", "как вижу у вас остались вопросы. задать вы их можете создателю.")
 
             self.root.bind('<Control-h>', Control_H)
             def Control_Z(key):
