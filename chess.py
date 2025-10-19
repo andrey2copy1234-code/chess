@@ -31,10 +31,11 @@ def is_comp(v, v2):
     print('small version')
     print('return False')
     return False
-versions_chess = {'2.1'}
+versions_chess = {'2.1', '2.2'}
 #вормат vChess: (vModule, vVector)
 comp_table = {
-    '2.1': ('2.0', '2.0')
+    '2.1': ('2.0', '2.0'),
+    '2.2': ('2.0', '2.0')
 }
 class problem_comp():
     def __init__(self, v1, v2, module):
@@ -78,9 +79,13 @@ def get_comp():
     return f"Данная версия ({__version__}) {'совместима' if comp_data.briefly else 'не совместима'} с модулями.\n {comp_data.why}"
 news = """
 v2.1
-теперь можно посмотреть это.
+Появились версии, проверка совместимости и то что добавили в различных версиях.
+
+v2.2
+Улучшен бот. теперь он сначало пытается максимум зашитится а потом атаковать.
+Также исправлен баг с тем что не работало 2 раза по restart.
 """
-__version__ = '2.1'
+__version__ = '2.2'
 #size = 600
 heightButtons = 50
 from chess_module import *
@@ -226,10 +231,16 @@ class game():
                 if self.file:
                     try:
                         with open(self.file, encoding='utf-8') as f:
-                            if f.read() != self.hist[-1]:
+                            str_read = f.read()
+                            if  str_read != self.hist[self.histPos-1]:
                                 loaded(game,self.file)
-                    except:
-                        print("не удалось открыть:", self.file)
+                                self.histPos += self.hist.set(getStringSave(self),self.histPos)
+                            else:
+                                loadedString(game,self.text)
+                                self.histPos += self.hist.set(getStringSave(self),self.histPos)
+                                self.file = None
+                    except FileNotFoundError:
+                        print("not can open:", self.file)
                 elif self.text:
                     loadedString(self,self.text)
                 for ob in self.map:
@@ -386,7 +397,7 @@ class game():
                             if choice == "yes":
                                 choice = messagebox.askquestion("помошь по шахматам №5", "популярные вопросы и ответы на их:\n  можно ли как-то уменьшить и увеличить окно? - нет, нельзя. окно всегда размером 600x600.\n  можно ли цифры и буквы вынести за пределы поля? - нет, нельзя.\n  почему на видео записовоется не то что надо? - сохранение видио это beta функция. сохранение видео пока работает не очень идеально. поэтому можно нажать (в начале записи) С (англискую и маленькую) для исправления этого. также вы возможно столкнулись с багом того что при использовании Control-z не правильно записывается видео.\n  почему это 'видео' .txt файл? - под видио я имею ввиду любую запись множества ходов. если вы хотите видио .mp4 а не .txt который только эта программа прочитать может то я вам могу предложить устоновить программы или использовать сочетания клавишь на windows для записи .mp4 видио.\n  чем bot отличается от bot2? - bot может делать неверные действия но плюс минус правильные а bot2 только самые лучшие как он постчитал. также bot работает намного медленее bot2. советую использовать bot2.\n  почему сочетания клавишь перестают работать? - вы наверное стоите на руской раскладке а не на англиской.\n  как поиграть в эти шахматы онлайн? - у меня есть chess_online это отдельный проект в который вы тоже можете поиграть. покачто от сюда в chess_online перейти нельзя через режимы. надо запускать другую программу.\n  как начать запись видео? - вам не нужно её начинать. она всегда включенна. если вы хотите чтобы всё что раньше записалось удалилось то нажмите C англискую\n\nесли что-то не поняли то нажмите 'да' в этом окошке.")
                                 if choice == "yes":
-                                    choice = messagebox.askquestion("помошь по шахматам №6", "Расширения:\n"+''.join('- '+mode.name+'\n'+mode.discription+'\n' for mode in self.modes)+('их нет' if len(self.modes) == 0 else '')+'если остались вопроссы нажмите "да"')
+                                    choice = messagebox.askquestion("помошь по шахматам №6", "Расширения:\n"+''.join('- '+mode.name+'\n'+mode.discription+'\n' for mode in self.modes)+('их нет' if len(self.modes) == 0 else '')+'\nесли остались вопроссы нажмите "да"')
 
                                     if choice == "yes":
                                         choice = messagebox.askquestion("помошь по шахматам №7", f"Версии (сейчас версия {__version__}):{news}\nесли остались вопросы нажмите 'да'")
@@ -694,13 +705,15 @@ class game():
                     steps_king = get_steps(king)
                     if len(steps_king)>l_steps:
                         if l_steps == 0:
-                            res = 0.9
+                            res = 0.8
+                        elif len(steps_king)>6:
+                            res = 1.5
                         else:
-                            res = 2
+                            res = 1
                     elif len(steps_king)==l_steps:
                         res = 1
                     else:
-                        res = -0.5
+                        res = 1.5
                     ob.pos = pos_ob
                     return res
                 return 1
@@ -752,15 +765,15 @@ class game():
                                                    (1.1 * (ob.steps+1) if ob.name == "пешка" else 1)*
                                                    (3 if ob.name == "пешка" and step[1]==2 else 1)*
                                                    (6/(abs(ob.pos[0]-4)+1) if ob.name == "пешка" or ob.name == "конь" and sum(ob.steps for ob in self.map)<=6 else 1)*
-                                                   (1.001*give_path(ob, step))*
-                                                   ((1.5 * get_npice(move_protection(ob, step))) if move_protection(ob, step)!=None and move_protection(ob, step) != "король" and (not attak_move(ob,step)) else 1)*
-                                                   (2 if ob.name != "король" and protection(ob,step) else 1)*
+                                                   (5*give_path(ob, step))*
+                                                   (((1.1 if sum(ob.steps for ob in self.map)>6 else 1.5) * get_npice(move_protection(ob, step))) if move_protection(ob, step)!=None and move_protection(ob, step) != "король" and (not attak_move(ob,step)) else 1)*
+                                                   ((2 if sum(ob.steps for ob in self.map)>6 else 1.2) if ob.name != "король" and protection(ob,step) else 1)*
                                                    (3*get_pice(move_can_attak(ob,step)) if move_can_attak(ob,step,noname=True) and (not attak_move(ob,step)) else 1)*
-                                                   (4  if end_path(ob) else 1)*                               #увеличиваем шанс в 2 раза если это даст пешке дойти до конца
-                                                   ((5*get_pice(can_atack(ob,step))) if can_atack(ob,step) else 1)*          #увеличиваем шанс в 10 раз если фигура атакует или если фигура отакует короля то в 50 раз
-                                                   ((3*get_pice(ob)/(get_pice(attak(ob)) if ob.name != "король" and protection(ob) else 1)) if attak(ob,noname=True) else 1)/  #увеличиваем шанс в 10 раз (в два раза меньше если под застчитой) если фигура под атакой или в 30 раз если это король
-                                                   (5*get_npice(path_find(ob,step)) if path_find(ob,step,noname = True) else 1)/      #уменьшаем шанс если другие фигуры атакуют
-                                                   (5*get_pice(ob) if attak_move(ob,step) else 1)     #уменьшаем шанс в 30 раз если при шаге станет возможной атака
+                                                   (4  if end_path(ob) else 1)*                               
+                                                   ((5*get_pice(can_atack(ob,step))) if can_atack(ob,step) else 1)*
+                                                   ((0.5*get_pice(ob)/(get_pice(attak(ob)) if ob.name != "король" and protection(ob) else 1)) if attak(ob,noname=True) else 1)/  
+                                                   (5*get_npice(path_find(ob,step)) if path_find(ob,step,noname = True) else 1)/
+                                                   (5*get_pice(ob) if attak_move(ob,step) else 1)
                                                 ,step)
                                             for step in steps)
                                     if self.mode[:4] == 'bot2':
@@ -800,7 +813,7 @@ class game():
                                 self.canvas.itemconfigure(self.label,text = ("белые победили" if not self.step else "чёрные победили"))
                     gc.enable()
                 for mode in self.modes:
-                    mode.iteration()
+                    mode.iteration(self.mode)
                 self.root.after(self.speed,frame)
             frame()
         else:
