@@ -31,11 +31,12 @@ def is_comp(v, v2):
     print('small version')
     print('return False')
     return False
-versions_chess = {'2.1', '2.2'}
+versions_chess = {'2.1', '2.2', '2.3'}
 #вормат vChess: (vModule, vVector)
 comp_table = {
     '2.1': ('2.0', '2.0'),
-    '2.2': ('2.0', '2.0')
+    '2.2': ('2.0', '2.0'),
+    '2.3': ('2.0', '2.0')
 }
 class problem_comp():
     def __init__(self, v1, v2, module):
@@ -84,8 +85,11 @@ v2.1
 v2.2
 Улучшен бот. теперь он сначало пытается максимум зашитится а потом атаковать.
 Также исправлен баг с тем что не работало 2 раза по restart.
+
+v2.3
+Теперь шахматы умеют обновляться на Control-u
 """
-__version__ = '2.2'
+__version__ = '2.3'
 #size = 600
 heightButtons = 50
 from chess_module import *
@@ -109,6 +113,55 @@ def saveF(game):
                     )
         if file_path:
             saveV(game, file_path)
+
+#update part
+import urllib.request
+import urllib.error
+import os
+import sys
+
+URL_REPOSITOR_DOWLOAD = "https://raw.githubusercontent.com/andrey2copy1234-code/chess/main"
+URL_REPOSITOR_PUBLICK = "https://github.com/andrey2copy1234-code/chess"
+files_update = ['chess.py', 'chess_module.py', 'vector.py']
+past_call = 0
+def update():
+    global past_call
+    t = time()
+    if t-past_call>90*len(files_update): #нельзя чаше чем в 1 минуту вызывать но это на всякий случай
+        ot = messagebox.askyesno("Обновление", "Обновить шахматы? (но рекоминдуется способ из справки)")
+        if ot:
+            ot = messagebox.askyesno("Обновление", "Создать отдельную папку для новой версии шахмат?")
+            if ot:
+                dir_files = filedialog.askdirectory()
+                name_dir = simpledialog.askstring("Создание папки", "введите имя папки")
+                dir_files += "/"+name_dir+"/"
+                if not dir_files:
+                    return 0
+                os.makedirs(dir_files)
+            else:
+                dir_files = "./"
+            for file_update in files_update:
+                url_to_file = f"{URL_REPOSITOR_DOWLOAD}/{file_update}"
+                try:
+                    with urllib.request.urlopen(url_to_file) as response:
+                        code = response.read()
+                    past_call = time()
+                except urllib.error.URLError:
+                    messagebox.askokcancel("Error", "Произошла ошибка сети.")
+                    return 1
+                print('return:', '\n'+code.decode('utf-8'))
+                path_to_file = dir_files+file_update
+                with open(path_to_file, 'wb') as file:
+                    file.write(code)
+            if dir_files == "./":
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+    else:
+        messagebox.askyesno("Совет", "Лучше сейчас не обновлять. так обновляя можно превысить лимиты запросов к github API")
+        return 1
+# update()
+# exit(0)
+
+
 class game():
     __slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory','steps','hist','histPos','speed','text','mode', 'modes')
     #__slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory')
@@ -387,7 +440,7 @@ class game():
                         print(f'[{mode.name}] {type(err).__name__}: {err}')
             self.canvas.bind("<ButtonPress-1>",clickReal)
             def Control_H(key):
-                choice = messagebox.askquestion("помошь по шахматам №1", "этот проект маштабен. но давайте объясню с управлением:\n  Control-H это вызвать это\n  Control-z вернуть обратно СВОЙ ход\n  Control-Shift-Z это вернуть всё как было до Control-z\n  Left (стрелочка) - проматывает видио на шаг назад.\n  Right (стрелочка) - проматывает вперёд. если видио закончилось то снимает действее с Left и себя.\n  c - стереть (необратимо) историю. рекомендуется для начала записи видио.\n  m - это переключение режима\n  s - изменяет скорость главного цикла. рекомендуется оставить значение в 20ms\n\nтеперь перейдём к окошкам. вы наверное встретите окошки в которых в скобочках слово и через тире другие слова. если нажмёте да - вы отвечаете окошку на вопрос выделенным словом в скобочках. если ответ нет - то проматывайте (с помошью нет) до нужного слова в скобочках\nпродолжить?")
+                choice = messagebox.askquestion("помошь по шахматам №1", f"этот проект маштабен. но давайте объясню с управлением:\n  Control-H это вызвать это\n  Control-z вернуть обратно СВОЙ ход\n  Control-Shift-Z это вернуть всё как было до Control-z\n  Left (стрелочка) - проматывает видио на шаг назад.\n  Right (стрелочка) - проматывает вперёд. если видио закончилось то снимает действее с Left и себя.\n  c - стереть (необратимо) историю. рекомендуется для начала записи видио.\n  m - это переключение режима\n  s - изменяет скорость главного цикла. рекомендуется оставить значение в 20ms\n  Control-u - обновить версию шахмат (но рекумендуется заходить и обновлять по {URL_REPOSITOR_PUBLICK})\n\nтеперь перейдём к окошкам. вы наверное встретите окошки в которых в скобочках слово и через тире другие слова. если нажмёте да - вы отвечаете окошку на вопрос выделенным словом в скобочках. если ответ нет - то проматывайте (с помошью нет) до нужного слова в скобочках\nпродолжить?")
                 if choice == "yes":
                     choice = messagebox.askquestion("помошь по шахматам №2", "теперь разберёмся с кнопками:\n  restart - перезапускает. если был старт с файла то перезапускает его. для того чтобы перевести в начальное состояние надо два раза нажать restart.\n  open - открывает файл или файл-видио.\n  save - сохраняет файл или файл-видио.\nпродолжить?")
                     if choice == "yes":
@@ -446,6 +499,9 @@ class game():
             def Control_s(key):
                 saveF()
             self.root.bind("<Control-s>",Control_s)
+            def Control_u(key):
+                update()
+            self.root.bind("<Control-u>",Control_u)
             def press_m(key):
                 self.mode = multiple_choice("Выбор режима","выберете режим:\n",['play','random','bot', 'bot2', 'bot2 vs bot2','bot_random']+[mode.name for mode in self.modes])
                 if self.mode not in ('play','random','bot', 'bot2', 'bot2 vs bot2','bot_random'):
