@@ -47,8 +47,8 @@ class problem_comp():
 def num_ind(num):
     return ('одна' if num == 1 else 'ноль') if num<=1 else ('пару' if num == 2 else 'несколько')
 class comp():
-    why: str = 'error'
-    briefly: bool|str = 'error'
+    why = 'error'
+    briefly = 'error'
     def __init__(self, why=None, briefly=None):
         if why:
             self.why = why
