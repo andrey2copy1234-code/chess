@@ -1,10 +1,13 @@
 import vector as v
 #import ArrayC as v
 from tkinter import messagebox
+import tkinter as tk
 from time import time
-__version__ = '2.0'
+import threading as th
+__version__ = '2.1'
 
-def multiple_choice(title,suppl,items,select_val=True,break_val=None,dialogType="askyesno",dialogFn=None):
+item_select = None
+def old_multiple_choice(title,suppl,items,select_val=True,break_val=None,dialogType="askyesno",dialogFn=None):
     i = -1
     ot = None
     if dialogFn == None:
@@ -18,7 +21,40 @@ def multiple_choice(title,suppl,items,select_val=True,break_val=None,dialogType=
             return None
         
     return items[i]
-
+def multiple_choice(title,suppl,items,images=None, padding=2):
+    global item_select
+    if images is None:
+        images = [None for i in range(len(items))]
+    w = tk.Tk()
+    w.title(title)
+    w.geometry("300x100")
+    tk.Label(w, text=suppl, font=("Arial", 12, "normal")).pack()
+    item_select = None
+    def select(item):
+        global item_select
+        item_select = item
+        print("destroy window")
+        print(item_select)
+        w.destroy()
+    def create_f(item):
+        def comd():
+            select(item)
+        return comd
+    for item, img_path in zip(items, images):
+        if img_path is not None:
+            img = tk.PhotoImage(img_path)
+            tk.Button(w, text=item, command=create_f(item), image=img).pack(pady=padding)
+        else:
+            tk.Button(w, text=item, command=create_f(item)).pack(pady=padding)
+    w.update()
+    w.geometry(f"300x{int(w.winfo_height()+12*1.5*len(suppl)/6+25*len(items)+padding)}")
+        
+    w.protocol("WM_DELETE_WINDOW", create_f(False))
+    while not item_select:
+        w.update()
+        th.Event().wait(1/30)
+    print('return:', item_select)
+    return item_select
 size = 600
 
 figure_picture = {
@@ -141,7 +177,7 @@ def loda(ob,iscollide):
 def peshka(ob,iscollide):
     c = iscollide(ob.pos+v.Vector(mas=(0,1))) if ob.b else iscollide(ob.pos-v.Vector(mas=(0,1)))
     c2 = iscollide(ob.pos+v.Vector(mas=(0,2))) if ob.b else iscollide(ob.pos-v.Vector(mas=(0,2)))
-    if ob.steps == 0 and ((not c)) and (not c2):
+    if ob.steps == 0 and (not c) and (not c2):
         if ob.b:
             mas = [(0,1),(0,2)]
         else:
@@ -265,7 +301,7 @@ class figure():
     def change_name(self,new_name):
         self.name = new_name
         self.canvas.itemconfigure(self.Frame,image = self.pictures[f"{self.name} {'w' if self.b else 'b'}"])
-    def move(self,pos,inThread=False,getReturn=False):
+    def move(self,pos,inThread=False):
         newPos = (pos-v.Vector2(mas=(1,1)))*size/8+v.Vector2(mas=(size/16,size/16))
         t = Tween(self.root,self.canvas,self.Frame,self.posP.copy(),newPos,tf=0.2,inThread=inThread)
         t.play()
@@ -290,7 +326,7 @@ class figure():
         elif self.name == "король":
             if step == v.Vector2(mas=(-2,0)) or step == v.Vector2(mas=(2,0)):
                 print("рокировка")
-                t = self.move(self.pos+step,getReturn=True)
+                t = self.move(self.pos+step)
                 def f():
                     print("call")
                     if step == v.Vector2(mas=(-2,0)):
@@ -319,7 +355,7 @@ def loaded(game,file,snowError=True):
     try: 
         file = open(file, 'r', encoding='utf-8')
     except:
-        raise NaF_Error(f"file '{file}' not found")
+        raise NaF_Error("file '{file}' not found")
     loadedString(game,file.read(),snowError)
     file.close()
 def loadedString(game,str,snowError=True):
@@ -353,7 +389,6 @@ def loadedString(game,str,snowError=True):
                         if snowError:
                             action = multiple_choice("Error",f"""Вы видимо используете файл старой версии шахмат\n""",("ок","продолжить"))
                             if action == "ок":
-                                return
                                 game.root.destroy()
                                 exit()
                         else:
@@ -366,8 +401,6 @@ def loadedString(game,str,snowError=True):
                             action = multiple_choice("Error",f"""the file is corrupted or you have entered the wrong file.
         Error: {err}\n""",('ок','продолжить'))
                             if action == "ок":
-                                __import__('traceback').print_exc()
-                                return
                                 game.root.destroy()
                                 exit()
                         else:
@@ -380,7 +413,6 @@ def loadedString(game,str,snowError=True):
                 action = multiple_choice("Error",f"""the file is corrupted or you have entered the wrong file.
         Error: there is not end\n""",('ок','продолжить'))
                 if action == "ок":
-                    return
                     game.root.destroy()
                     exit()
             else:
@@ -391,7 +423,6 @@ def loadedString(game,str,snowError=True):
                 action = multiple_choice("Error",f"""the file is corrupted or you have entered the wrong file.
         Error: not saving step\n""",('ок','продолжить'))
                 if action == "ок":
-                    return
                     game.root.destroy()
                     exit()
             else:
@@ -399,7 +430,6 @@ def loadedString(game,str,snowError=True):
     else:
         if snowError:
             messagebox.askquestion("Error", "это файл видео")
-            return
             game.root.destroy()
             exit()
         else:
@@ -439,7 +469,7 @@ class histStr():
         return self.get(i)
     def __len__(self):
         return len(self.str)
-def openV(game, path):
+def openV(game, path ):
     file = open(path, 'r', encoding='utf-8')
     text = file.read()
     file.close()
@@ -449,14 +479,12 @@ def openV(game, path):
         ob.init()
     game.canvas.lift(game.label)
     class step_function():
-        def __init__(self):
-            pass
         def __call__(self, *args, **kwds):
             try:
                 self.step(*args, **kwds)
             except AttributeError:
                 del self
-        def step(self, key):
+        def step(self, _):
             if self.counter < len(lines):
                 line = lines[self.counter]
                 for ob in game.map:
@@ -489,7 +517,7 @@ def openV(game, path):
             else:
                 game.root.unbind('<Right>')
                 game.root.unbind('<Left>')
-        def back_step(self, key):
+        def back_step(self, _):
             if self.counter > 0:
                 self.counter -= 1
                 line = lines[self.counter]
