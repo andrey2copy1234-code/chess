@@ -31,12 +31,13 @@ def is_comp(v, v2):
     print('small version')
     print('return False')
     return False
-versions_chess = {'2.1', '2.2', '2.3'}
+versions_chess = {'2.1', '2.2', '2.3', '2.4'}
 #вормат vChess: (vModule, vVector)
 comp_table = {
     '2.1': ('2.0', '2.0'),
     '2.2': ('2.0', '2.0'),
-    '2.3': ('2.0', '2.0')
+    '2.3': ('2.0', '2.0'),
+    '2.4': ('2.0', '2.0')
 }
 class problem_comp():
     def __init__(self, v1, v2, module):
@@ -88,8 +89,11 @@ v2.2
 
 v2.3
 Теперь шахматы умеют обновляться на Control-u
+
+v2.4
+Теперь бот мыслит не "я смогу съесть эту фигуру через один ход. значит ход хороший", а он теперь с эти сьедением через 1 ход проверяет застчишишена ли фигура которую он хочет съесть
 """
-__version__ = '2.3'
+__version__ = '2.4'
 #size = 600
 heightButtons = 50
 from chess_module import *
@@ -545,6 +549,7 @@ class game():
 ##                                return True
 ##                    return False
             def move_can_attak(ob,step,noname=False): # возращяет есть ли возможность отаковать фигуры после хода
+                # поменялось с да нет и с фигура нет на число
                 st_pos = ob.pos
                 new_pos = st_pos+v.Vector2(mas=step)
                 ob.pos = new_pos
@@ -561,15 +566,17 @@ class game():
                     #otvet = any((True for f in self.map if f.b != ob.b and any((True for stepMyF in steps if f.pos==new_pos+v.Vector2(mas=stepMyF)))))
                 else:
                     movs = {tuple(ob.pos+v.Vector2(mas=stepf)) for stepf in steps}
+                    def pice(f):
+                        return get_pice(f)/(get_pice(ob) if protection(f) else 1)
                     best_figure = None
                     pice_best_figure = 0
                     if len(steps)!=0:
                         for f in self.map:
-                            if f.b != ob.b and get_pice(f)>pice_best_figure and (tuple(f.pos) in movs):
+                            if f.b != ob.b and pice(f)>pice_best_figure and (tuple(f.pos) in movs):
                                 best_figure = f
-                                pice_best_figure = get_pice(ob)
+                                pice_best_figure = pice(ob)
                 ob.pos = st_pos
-                return best_figure
+                return pice_best_figure
             def can_atack(ob,step): #возвращяет атакует ли фигура данным ходом
                 return self.iscollide(ob.pos+v.Vector2(mas=step))
             def path_find(ob,step=None,noname=False):
@@ -586,7 +593,7 @@ class game():
                 if noname:
                     #not_b = (f for f in self.map if f.b != ob.b)
                     #return any(True for f2 in self.map if f2.b == ob.b and (not (f2 is ob)) and any(True for f in not_b if any(True for stepf in get_steps(f,MyIscollide) if f.pos+v.Vector2(mas=stepf)==f2.pos)))
-                    pos_whites = {tuple(f.pos) for f in self.map if f.b == ob.b and not (f is ob)}
+                    pos_whites = {tuple(f.pos) for f in self.map if f.b == ob.b and (f is not ob)}
                     for f2 in self.map:
                         if f2.b != ob.b and f2.pos != new_pos:
                             steps = get_steps(f2, MyIscollide)
@@ -602,13 +609,13 @@ class game():
 ##                            if any(True for f in self.map if f.b!=ob.b and any(f.pos+v.Vector2(mas=stepf)==f2.pos for stepf in get_steps(f,MyIscollide))) and get_pice(f2)>best_pice:
 ##                                best_figure = f2
 ##                                best_pice = get_pice(f2)
-                    whites_pos = {tuple(f.pos): f.name for f in self.map if f.b == ob.b and not (f is ob)}
+                    whites_pos = {tuple(f.pos): f.name for f in self.map if f.b == ob.b and (f is not ob)}
                     for f2 in self.map:
-                        if f2.b != ob.b and not (f2 is ob) and f2.pos != new_pos:
+                        if f2.b != ob.b and (f2 is not ob) and f2.pos != new_pos:
                             steps = get_steps(f2,MyIscollide)
                             for stepf in steps:
                                 name = whites_pos.get(tuple(f2.pos + v.Vector2(mas=stepf)))
-                                if not (name is None) and get_npice(name)>best_pice:
+                                if (name is not None) and get_npice(name)>best_pice:
                                     best_figure = name
                                     best_pice = get_npice(name)
                     return best_figure
@@ -628,14 +635,13 @@ class game():
                 ob.pos = new_pos
                 def MyIscollide(pos):
                     res = self.iscollide(pos)
-                    if res:
-                        if res.b != ob.b:
-                            return res
+                    if res and res.b != ob.b:
+                        return res
                 steps = {tuple(step) for step in get_steps(ob,MyIscollide)}
                 best_pice = 0
                 best_figure = None
                 for f in self.map:
-                    if f.b == ob.b and (not (f is ob)) and (tuple(f.pos) in steps) and get_pice(f)>best_pice:
+                    if f.b == ob.b and (f is not ob) and (tuple(f.pos) in steps) and get_pice(f)>best_pice:
                         best_pice = get_pice(f)
                         best_figure = f.name
                 ob.pos = st_pos
@@ -685,10 +691,9 @@ class game():
             def can_attak_king(ob,step): #функция проверяет есть ли ходы полезнее (которые атакуют вражеского короля)
                 print(f"can_attak_king({ob},{step})")
                 attackRes = can_atack(ob,step)
-                if attackRes:
-                    if attackRes.name == "король":
-                        print("True part can_atack_king")
-                        return True
+                if attackRes and attackRes.name == "король":
+                    print("True part can_atack_king")
+                    return True
                 if ob.name == "король":
                     print("ok this is king")
                     if attak_move(ob, step):
@@ -700,9 +705,6 @@ class game():
                         print('bad step. path_find True')
                         return False
                 return True
-            def get_best_steps(steps,best_change):
-                # return (steps[i][1] for i in range(len(steps)) if steps[i][0] == best_change)
-                return sorted(steps, key = lambda step: step[0])
             def step_figure(ob, step):
                 step = v.Vector2(mas=step)
                 move_to = step+ob.pos
@@ -777,7 +779,7 @@ class game():
 
                 if not self.victory and self.mode != "play" and (self.mode != 'bot2' or not self.step):
                     gc.disable()
-                    if self.mode[:4] == 'bot2':
+                    if self.mode.startswith('bot2'):
                         all_steps = []
                     #работа json:
                     #all - положение всех фигур
@@ -793,20 +795,20 @@ class game():
                     #arg1 - номер шага фигуры
                     #arg2 - idF номер фигуры
                     
-                    
-                    if self.mode == "NN":
-                        try:
-                            data = in_nn({'all' : getStringSave(self) ,'idF' : 0, 'step' : 0, 'color': False})
-                            res = neiro.load('./NN.neiro').forward(data[0]+[data[2]])
-                            idF = 0
-                            for f in self.map:
-                                if not f.b:
-                                    idF += 1
-                                    if idF == res[1]:
-                                        steps = get_steps(f)
-                                        step_figure(f, steps[res[0]%len(steps)])
-                        except:
-                            pass
+                    # если понадобится для ИИ
+                    # if self.mode == "NN":
+                    #     try:
+                    #         data = in_nn({'all' : getStringSave(self) ,'idF' : 0, 'step' : 0, 'color': False})
+                    #         res = neiro.load('./NN.neiro').forward(data[0]+[data[2]])
+                    #         idF = 0
+                    #         for f in self.map:
+                    #             if not f.b:
+                    #                 idF += 1
+                    #                 if idF == res[1]:
+                    #                     steps = get_steps(f)
+                    #                     step_figure(f, steps[res[0]%len(steps)])
+                    #     except:
+                    #         pass
 
                     for ob in self.map:
                         if (((self.mode == "random" or self.mode == "bot2 vs bot2") and ob.b == self.step) or ((self.mode == "bot_random" or self.mode == "bot" or self.mode == "bot2") and ob.b == False and self.step==False)) and (True if self.mode == "bot" or self.mode == "bot2" else randint(1,len(self.map)//8)==1):
@@ -814,7 +816,7 @@ class game():
                             steps = [step for step in steps if (not self.iscollide(v.Vector2(mas=step)+ob.pos) or self.iscollide(v.Vector2(mas=step)+ob.pos).b != self.step) and in_map(ob.pos+v.Vector2(mas=step))]
                             if len(steps) != 0:
                                 #print(f"start work: {ob}")
-                                if self.mode == "bot" or self.mode[:4] == 'bot2':
+                                if self.mode == "bot" or self.mode.startswith('bot2'):
                                     #print(f"start work: {ob}")
                                     steps = tuple((1*
                                                    (1.2 if ob.name == "пешка" else 1)*
@@ -824,7 +826,7 @@ class game():
                                                    (5*give_path(ob, step))*
                                                    (((1.1 if sum(ob.steps for ob in self.map)>6 else 1.5) * get_npice(move_protection(ob, step))) if move_protection(ob, step)!=None and move_protection(ob, step) != "король" and (not attak_move(ob,step)) else 1)*
                                                    ((2 if sum(ob.steps for ob in self.map)>6 else 1.2) if ob.name != "король" and protection(ob,step) else 1)*
-                                                   (3*get_pice(move_can_attak(ob,step)) if move_can_attak(ob,step,noname=True) and (not attak_move(ob,step)) else 1)*
+                                                   (3*move_can_attak(ob,step) if move_can_attak(ob,step,noname=True) and (not attak_move(ob,step)) else 1)*
                                                    (4  if end_path(ob) else 1)*                               
                                                    ((5*get_pice(can_atack(ob,step))) if can_atack(ob,step) else 1)*
                                                    ((0.5*get_pice(ob)/(get_pice(attak(ob)) if ob.name != "король" and protection(ob) else 1)) if attak(ob,noname=True) else 1)/  
@@ -832,7 +834,7 @@ class game():
                                                    (5*get_pice(ob) if attak_move(ob,step) else 1)
                                                 ,step)
                                             for step in steps)
-                                    if self.mode[:4] == 'bot2':
+                                    if self.mode.startswith('bot2'):
                                         # best = max(step_data[0] for step_data in steps)
                                         # best_steps = get_best_steps(steps,best)
                                         # all_steps.append((ob,best_steps,best))
@@ -844,11 +846,11 @@ class game():
                                 if self.mode == "random" or self.mode == "bot_random":
                                     step = v.Vector2(mas=steps[randint(0,len(steps)-1)])
                                 #if step and (self.mode!="bot" or (can_attak_king(ob, step))):
-                                if (self.mode[:4]!="bot2") and step and (self.mode != 'bot' or can_attak_king(ob, step)):
+                                if (not self.mode.startswith("bot2")) and step and (self.mode != 'bot' or can_attak_king(ob, step)):
                                     print("this is",path_find(ob,step,noname=True))
                                     print('died:',path_find(ob,step))
                                     step_figure(ob, step)
-                    if self.mode[:4] == "bot2":
+                    if self.mode.startswith("bot2"):
                         pf = path_find(imit_figure(not ob.b))
                         if pf == "король":
                             self.histPos += self.hist.set(getStringSave(self),self.histPos)
@@ -901,15 +903,14 @@ def load_mode(path):
         except:
             print('module not found main')
             return
-        return Mode
+    return Mode
 import os
 def load_modes(folder='./modes'):
     try:
         modes = os.listdir(folder)
     except FileNotFoundError:
         os.mkdir(folder)
-        load_modes(folder)
-        return
+        return load_modes(folder)
     modes_exec = []
     for mode in modes:
         mode_exec = load_mode(mode)
