@@ -1,17 +1,16 @@
-import tkinter as tk
-import vector as v
-__vVector__ = v.__version__
+import tkinter as tk # библиотека для GUI
+import vector as v   # модуль для векторных операций
+__vVector__ = v.__version__ 
 #import ArrayC as v
-import math as m
-from time import time,sleep
-from tkinter import filedialog,messagebox
-import gc
-import math
-import json
+import math as m # матиматика
+from time import time,sleep # время
+from tkinter import filedialog,messagebox # мини окна
+import gc # отключение включение сборшика мусора (GC)
+import math # матиматика
+import json # json разбор
+import threading as th # потоки
+import contextlib # для wich window
 #import neiro #потом будет использоваться для ии
-# from ctypes import CDLL
-# libC = CDLL("../c++ files/libChess.dll")
-# path_find = libC.path_find
 
 def is_comp(v, v2):
     print(f'is_comp({v},{v2})')
@@ -31,13 +30,14 @@ def is_comp(v, v2):
     print('small version')
     print('return False')
     return False
-versions_chess = {'2.1', '2.2', '2.3', '2.4'}
+versions_chess = {'2.1', '2.2', '2.3', '2.4', '2.5'}
 #вормат vChess: (vModule, vVector)
 comp_table = {
     '2.1': ('2.0', '2.0'),
     '2.2': ('2.0', '2.0'),
     '2.3': ('2.0', '2.0'),
-    '2.4': ('2.0', '2.0')
+    '2.4': ('2.0', '2.0'),
+    '2.5': ('2.0', '2.0')
 }
 class problem_comp():
     def __init__(self, v1, v2, module):
@@ -70,7 +70,7 @@ class comp():
                     self.why = f"произошло {num_idn2} проблем{'a' if num_idn2[-1] == 'a' else ''}:"+''.join('\n*'+str(problem) for problem in problems)
                     self.briefly = False
                 else:
-                    self.why = f"потому что:\nне произошло ни одной проблеммы совместимости"
+                    self.why = f"потому что:\nне произошло ни одной проблеммы совместимости (минимальная версия chess_module {vModule_comp} и минимальная версия vector {vVector_comp})"
                     self.briefly = True
 
 def get_comp():
@@ -91,9 +91,12 @@ v2.3
 Теперь шахматы умеют обновляться на Control-u
 
 v2.4
-Теперь бот мыслит не "я смогу съесть эту фигуру через один ход. значит ход хороший", а он теперь с эти сьедением через 1 ход проверяет застчишишена ли фигура которую он хочет съесть
+Теперь бот мыслит не "я смогу съесть эту фигуру через один ход. значит ход хороший", а он теперь с эти сьедением через 1 ход проверяет застчишишена ли фигура которую он хочет съесть. рекомендую вместе с ним скачать ещё и chess_module 2.1
+
+v2.5
+Теперь обновление шахмат более понятнее и продуманнее. появился gui интерфейс во время обновления. и новые заготовки для случаев когда в проекте будет более 60 файлов. ведь раньше это с маштабом в 60 файлов могло заблокировать по ip за превышение лимита запросов в час. также увеличенна скорость загрузки нового обновления. Также улучшена обработка ошибок. теперь вместо моментального закрытия программы или зависания показывается что за ошибка и просьба отправить её автору созданного кода. также некоторые ошибки (например при обновлении) ещё и переводятся на язык понятный всем (почти).
 """
-__version__ = '2.4'
+__version__ = '2.5'
 #size = 600
 heightButtons = 50
 from chess_module import *
@@ -127,6 +130,104 @@ import sys
 URL_REPOSITOR_DOWLOAD = "https://raw.githubusercontent.com/andrey2copy1234-code/chess/main"
 URL_REPOSITOR_PUBLICK = "https://github.com/andrey2copy1234-code/chess"
 files_update = ['chess.py', 'chess_module.py', 'vector.py']
+def fast_iter(iteration, at_time):
+    for i in range(0, len(iteration), at_time):
+        yield (iteration[i2] for i2 in range(i, min(i+at_time, len(iteration))))
+def interpolate_color(color1_hex, color2_hex, progress):
+    r1, g1, b1 = int(color1_hex[1:3], 16), int(color1_hex[3:5], 16), int(color1_hex[5:7], 16)
+    r2, g2, b2 = int(color2_hex[1:3], 16), int(color2_hex[3:5], 16), int(color2_hex[5:7], 16)
+    r = int(r1 + (r2 - r1) * progress)
+    g = int(g1 + (g2 - g1) * progress)
+    b = int(b1 + (b2 - b1) * progress)
+    return f"#{r:02x}{g:02x}{b:02x}"
+@contextlib.contextmanager
+def the_window_all_close(window):
+    try:
+        yield
+    finally:
+        if window.winfo_exists():
+            window.destroy()
+col1 = "#ff0000"
+col2 = "#00ff00"
+is_error = 0
+def paralel_for_updating(fn, colection, *args, at_time=8, **kwargs):
+    global is_error
+    updating_window = tk.Tk()
+    with the_window_all_close(updating_window):
+        updating_window.geometry("300x150")
+        updating_window.title("updating chess")
+        updating_window.resizable(width=False, height=False)
+        canvas = tk.Canvas(updating_window, bg=col1)
+        text_proces = canvas.create_text(150,int(150/2), text="files loaded: 0\navg time left: unknown\n0% is loaded")
+        canvas.pack(fill = 'both',expand = True)
+        updating_window.update()
+        tasks = fast_iter(colection, at_time)
+        t = time()
+        start_time = t
+        counter = 0
+        for tasks_time in tasks:
+            while True:
+                if counter+at_time>=60:
+                    if time()-t>=60*60:
+                        counter = 0
+                        t = time()
+                    else:
+                        canvas.itemconfig(text_proces, text=f"files loaded: {counter}\navg time left: {start_time/counter:.1f}\n{counter/len(colection)*100:.2f}% is loaded\n loaded: wait")
+                        updating_window.update()
+                        sleep(60*60-(time()-t))
+                        continue
+                threads = [th.Thread(target=fn, args=(task, *args), kwargs=kwargs) for task in tasks_time]
+                for thr in threads:
+                    thr.start()
+                need_stop = False
+                for thr in threads:
+                    thr.join()
+                    if need_stop:
+                        continue
+                    if is_error:
+                        need_stop = True
+                    counter += 1
+                    canvas.itemconfig(text_proces, text=f"files loaded: {counter}\navg time left: {(time()-start_time)/counter:.1f}\n{counter/len(colection)*100:.2f}% is loaded")
+                    canvas.configure(bg=interpolate_color(col1, col2, counter/len(colection)))
+                    updating_window.update()
+                if need_stop:
+                    updating_window.destroy()
+                    if is_error == 1:
+                        messagebox.askokcancel("Error", "Произошла ошибка сети.")
+                    else:
+                        messagebox.askokcancel("Error", "Превышенно время ожидания ответа.")
+                    is_error = 0
+                    return 1
+                break
+        canvas.itemconfig(text_proces, text=f"files loaded: {counter}\navg time left: 0\n{counter/len(colection)*100:.2f}% is loaded\n loaded: successfully")
+
+        updating_window.update()
+        sleep(1)
+def update_file_from_github(file_update, dir_files):
+    global is_error
+    global past_call
+    url_to_file = f"{URL_REPOSITOR_DOWLOAD}/{file_update}"
+    try:
+        with urllib.request.urlopen(url_to_file, timeout=10) as response:
+            code = response.read()
+        past_call = time()
+    except urllib.error.URLError:
+        is_error = 1
+    except TimeoutError:
+        is_error = 2
+    path_to_file = dir_files+file_update
+    with open(path_to_file, 'wb') as file:
+        file.write(code)
+def snow_console():
+    from ctypes import windll
+    windll.user32.ShowWindow(windll.kernel32.GetConsoleWindow(), True)
+def snow_error():
+    import traceback
+    traceback.print_exc()
+    snow_console()
+def base_snow_error():
+    messagebox.askokcancel("Error", "функция которую ты вызвал вызвала ошибку. я открою консоль. отправь что в консоли автору этих шахмат")
+    snow_error()
 past_call = 0
 def update():
     global past_call
@@ -141,22 +242,30 @@ def update():
                 dir_files += "/"+name_dir+"/"
                 if not dir_files:
                     return 0
-                os.makedirs(dir_files)
+                try:
+                    os.makedirs(dir_files)
+                except FileExistsError:
+                    pass
             else:
                 dir_files = "./"
-            for file_update in files_update:
-                url_to_file = f"{URL_REPOSITOR_DOWLOAD}/{file_update}"
-                try:
-                    with urllib.request.urlopen(url_to_file) as response:
-                        code = response.read()
-                    past_call = time()
-                except urllib.error.URLError:
-                    messagebox.askokcancel("Error", "Произошла ошибка сети.")
-                    return 1
-                print('return:', '\n'+code.decode('utf-8'))
-                path_to_file = dir_files+file_update
-                with open(path_to_file, 'wb') as file:
-                    file.write(code)
+            try:
+                paralel_for_updating(update_file_from_github, files_update, dir_files)
+            except:
+                messagebox.askokcancel("Error", "новая функция вызвала ошибку. я открою консоль. отправь что в консоли автору")
+                snow_error()
+            # for file_update in files_update:
+            #     url_to_file = f"{URL_REPOSITOR_DOWLOAD}/{file_update}"
+            #     try:
+            #         with urllib.request.urlopen(url_to_file) as response:
+            #             code = response.read()
+            #         past_call = time()
+            #     except urllib.error.URLError:
+            #         messagebox.askokcancel("Error", "Произошла ошибка сети.")
+            #         return 1
+            #     print('return:', '\n'+code.decode('utf-8'))
+            #     path_to_file = dir_files+file_update
+            #     with open(path_to_file, 'wb') as file:
+            #         file.write(code)
             if dir_files == "./":
                 os.execv(sys.executable, [sys.executable] + sys.argv)
     else:
@@ -504,7 +613,10 @@ class game():
                 saveF()
             self.root.bind("<Control-s>",Control_s)
             def Control_u(key):
-                update()
+                try:
+                    update()
+                except:
+                    base_snow_error()
             self.root.bind("<Control-u>",Control_u)
             def press_m(key):
                 self.mode = multiple_choice("Выбор режима","выберете режим:\n",['play','random','bot', 'bot2', 'bot2 vs bot2','bot_random']+[mode.name for mode in self.modes])
@@ -776,103 +888,115 @@ class game():
                     return res
                 return 1
             def frame():
+                try:
+                    if not self.victory and self.mode != "play" and (self.mode != 'bot2' or not self.step):
+                        gc.disable()
+                        if self.mode.startswith('bot2'):
+                            all_steps = []
+                        #работа json:
+                        #all - положение всех фигур
+                        #step - номер шага
+                        #idF - id фигуры за которую идёт ход
+                        #color - кто ходит
 
-                if not self.victory and self.mode != "play" and (self.mode != 'bot2' or not self.step):
-                    gc.disable()
-                    if self.mode.startswith('bot2'):
-                        all_steps = []
-                    #работа json:
-                    #all - положение всех фигур
-                    #step - номер шага
-                    #idF - id фигуры за которую идёт ход
-                    #color - кто ходит
+                        #работа неиросети:
+                        #arg1-32*5 - положение всех фигур (если фигуры нет то -1)
+                        #arg32*5+1 - то за что ходит неиросеть
 
-                    #работа неиросети:
-                    #arg1-32*5 - положение всех фигур (если фигуры нет то -1)
-                    #arg32*5+1 - то за что ходит неиросеть
+                        #выводит:
+                        #arg1 - номер шага фигуры
+                        #arg2 - idF номер фигуры
+                        
+                        # если понадобится для ИИ
+                        # if self.mode == "NN":
+                        #     try:
+                        #         data = in_nn({'all' : getStringSave(self) ,'idF' : 0, 'step' : 0, 'color': False})
+                        #         res = neiro.load('./NN.neiro').forward(data[0]+[data[2]])
+                        #         idF = 0
+                        #         for f in self.map:
+                        #             if not f.b:
+                        #                 idF += 1
+                        #                 if idF == res[1]:
+                        #                     steps = get_steps(f)
+                        #                     step_figure(f, steps[res[0]%len(steps)])
+                        #     except:
+                        #         pass
 
-                    #выводит:
-                    #arg1 - номер шага фигуры
-                    #arg2 - idF номер фигуры
-                    
-                    # если понадобится для ИИ
-                    # if self.mode == "NN":
-                    #     try:
-                    #         data = in_nn({'all' : getStringSave(self) ,'idF' : 0, 'step' : 0, 'color': False})
-                    #         res = neiro.load('./NN.neiro').forward(data[0]+[data[2]])
-                    #         idF = 0
-                    #         for f in self.map:
-                    #             if not f.b:
-                    #                 idF += 1
-                    #                 if idF == res[1]:
-                    #                     steps = get_steps(f)
-                    #                     step_figure(f, steps[res[0]%len(steps)])
-                    #     except:
-                    #         pass
-
-                    for ob in self.map:
-                        if (((self.mode == "random" or self.mode == "bot2 vs bot2") and ob.b == self.step) or ((self.mode == "bot_random" or self.mode == "bot" or self.mode == "bot2") and ob.b == False and self.step==False)) and (True if self.mode == "bot" or self.mode == "bot2" else randint(1,len(self.map)//8)==1):
-                            steps = get_steps(ob)
-                            steps = [step for step in steps if (not self.iscollide(v.Vector2(mas=step)+ob.pos) or self.iscollide(v.Vector2(mas=step)+ob.pos).b != self.step) and in_map(ob.pos+v.Vector2(mas=step))]
-                            if len(steps) != 0:
-                                #print(f"start work: {ob}")
-                                if self.mode == "bot" or self.mode.startswith('bot2'):
+                        for ob in self.map:
+                            if (((self.mode == "random" or self.mode == "bot2 vs bot2") and ob.b == self.step) or ((self.mode == "bot_random" or self.mode == "bot" or self.mode == "bot2") and ob.b == False and self.step==False)) and (True if self.mode == "bot" or self.mode == "bot2" else randint(1,len(self.map)//8)==1):
+                                steps = get_steps(ob)
+                                steps = [step for step in steps if (not self.iscollide(v.Vector2(mas=step)+ob.pos) or self.iscollide(v.Vector2(mas=step)+ob.pos).b != self.step) and in_map(ob.pos+v.Vector2(mas=step))]
+                                if len(steps) != 0:
                                     #print(f"start work: {ob}")
-                                    steps = tuple((1*
-                                                   (1.2 if ob.name == "пешка" else 1)*
-                                                   (1.1 * (ob.steps+1) if ob.name == "пешка" else 1)*
-                                                   (3 if ob.name == "пешка" and step[1]==2 else 1)*
-                                                   (6/(abs(ob.pos[0]-4)+1) if ob.name == "пешка" or ob.name == "конь" and sum(ob.steps for ob in self.map)<=6 else 1)*
-                                                   (5*give_path(ob, step))*
-                                                   (((1.1 if sum(ob.steps for ob in self.map)>6 else 1.5) * get_npice(move_protection(ob, step))) if move_protection(ob, step)!=None and move_protection(ob, step) != "король" and (not attak_move(ob,step)) else 1)*
-                                                   ((2 if sum(ob.steps for ob in self.map)>6 else 1.2) if ob.name != "король" and protection(ob,step) else 1)*
-                                                   (3*move_can_attak(ob,step) if move_can_attak(ob,step,noname=True) and (not attak_move(ob,step)) else 1)*
-                                                   (4  if end_path(ob) else 1)*                               
-                                                   ((5*get_pice(can_atack(ob,step))) if can_atack(ob,step) else 1)*
-                                                   ((0.5*get_pice(ob)/(get_pice(attak(ob)) if ob.name != "король" and protection(ob) else 1)) if attak(ob,noname=True) else 1)/  
-                                                   (5*get_npice(path_find(ob,step)) if path_find(ob,step,noname = True) else 1)/
-                                                   (5*get_pice(ob) if attak_move(ob,step) else 1)
-                                                ,step)
-                                            for step in steps)
-                                    if self.mode.startswith('bot2'):
-                                        # best = max(step_data[0] for step_data in steps)
-                                        # best_steps = get_best_steps(steps,best)
-                                        # all_steps.append((ob,best_steps,best))
-                                        all_steps.extend((ob, step) for step in steps)
-                                    else:
-                                        step = v.getRandomProcentItem(steps,0.03)
-                                    
-                                    #print(steps)
-                                if self.mode == "random" or self.mode == "bot_random":
-                                    step = v.Vector2(mas=steps[randint(0,len(steps)-1)])
-                                #if step and (self.mode!="bot" or (can_attak_king(ob, step))):
-                                if (not self.mode.startswith("bot2")) and step and (self.mode != 'bot' or can_attak_king(ob, step)):
-                                    print("this is",path_find(ob,step,noname=True))
-                                    print('died:',path_find(ob,step))
-                                    step_figure(ob, step)
-                    if self.mode.startswith("bot2"):
-                        pf = path_find(imit_figure(not ob.b))
-                        if pf == "король":
-                            self.histPos += self.hist.set(getStringSave(self),self.histPos)
-                            self.victory = True
-                            self.canvas.itemconfigure(self.label,text = ("белые победили" if self.step else "чёрные победили"))
-
-                        if not self.victory:
-                            sort_steps = sorted(all_steps, key = lambda x: x[1][0], reverse=True)
-              
-                            for i in range(len(sort_steps)):
-                                step = sort_steps[i][1][1]
-                                ob = sort_steps[i][0]
-                                if can_attak_king(ob, step):
-                                    step_figure(ob, step)
-                                    break
-                            else:
+                                    if self.mode == "bot" or self.mode.startswith('bot2'):
+                                        #print(f"start work: {ob}")
+                                        steps = tuple((1*
+                                                    (1.2 if ob.name == "пешка" else 1)*
+                                                    (1.1 * (ob.steps+1) if ob.name == "пешка" else 1)*
+                                                    (3 if ob.name == "пешка" and step[1]==2 else 1)*
+                                                    (6/(abs(ob.pos[0]-4)+1) if ob.name == "пешка" or ob.name == "конь" and sum(ob.steps for ob in self.map)<=6 else 1)*
+                                                    (5*give_path(ob, step))*
+                                                    (((1.1 if sum(ob.steps for ob in self.map)>6 else 1.5) * get_npice(move_protection(ob, step))) if move_protection(ob, step)!=None and move_protection(ob, step) != "король" and (not attak_move(ob,step)) else 1)*
+                                                    ((2 if sum(ob.steps for ob in self.map)>6 else 1.2) if ob.name != "король" and protection(ob,step) else 1)*
+                                                    (3*move_can_attak(ob,step) if move_can_attak(ob,step,noname=True) and (not attak_move(ob,step)) else 1)*
+                                                    (4  if end_path(ob) else 1)*                               
+                                                    ((5*get_pice(can_atack(ob,step))) if can_atack(ob,step) else 1)*
+                                                    ((0.5*get_pice(ob)/(get_pice(attak(ob)) if ob.name != "король" and protection(ob) else 1)) if attak(ob,noname=True) else 1)/  
+                                                    (5*get_npice(path_find(ob,step)) if path_find(ob,step,noname = True) else 1)/
+                                                    (5*get_pice(ob) if attak_move(ob,step) else 1)
+                                                    ,step)
+                                                for step in steps)
+                                        if self.mode.startswith('bot2'):
+                                            # best = max(step_data[0] for step_data in steps)
+                                            # best_steps = get_best_steps(steps,best)
+                                            # all_steps.append((ob,best_steps,best))
+                                            all_steps.extend((ob, step) for step in steps)
+                                        else:
+                                            step = v.getRandomProcentItem(steps,0.03)
+                                        
+                                        #print(steps)
+                                    if self.mode == "random" or self.mode == "bot_random":
+                                        step = v.Vector2(mas=steps[randint(0,len(steps)-1)])
+                                    #if step and (self.mode!="bot" or (can_attak_king(ob, step))):
+                                    if (not self.mode.startswith("bot2")) and step and (self.mode != 'bot' or can_attak_king(ob, step)):
+                                        print("this is",path_find(ob,step,noname=True))
+                                        print('died:',path_find(ob,step))
+                                        step_figure(ob, step)
+                        if self.mode.startswith("bot2"):
+                            pf = path_find(imit_figure(not ob.b))
+                            if pf == "король":
+                                self.histPos += self.hist.set(getStringSave(self),self.histPos)
                                 self.victory = True
-                                self.canvas.itemconfigure(self.label,text = ("белые победили" if not self.step else "чёрные победили"))
-                    gc.enable()
+                                self.canvas.itemconfigure(self.label,text = ("белые победили" if self.step else "чёрные победили"))
+
+                            if not self.victory:
+                                sort_steps = sorted(all_steps, key = lambda x: x[1][0], reverse=True)
+                
+                                for i in range(len(sort_steps)):
+                                    step = sort_steps[i][1][1]
+                                    ob = sort_steps[i][0]
+                                    if can_attak_king(ob, step):
+                                        step_figure(ob, step)
+                                        break
+                                else:
+                                    self.victory = True
+                                    self.canvas.itemconfigure(self.label,text = ("белые победили" if not self.step else "чёрные победили"))
+                        gc.enable()
+                except:
+                    messagebox.askokcancel("Error", "при работе основного цикла игры возникла ошибка. я открою консоль. отправь что в консоли автору шахмат и перезапусти игру что бы ошибка пропала. если хочешь продолжить и тебе неважно на ошибку то нажми Enter в консоли")
+                    snow_error()
+                    input()
                 for mode in self.modes:
-                    mode.iteration(self.mode)
+                    try:
+                        mode.iteration(self.mode)
+                    except:
+                        messagebox.askokcancel("Error", f"при работе основного цикла игры возникла ошибка в модификации {mode.name}. я открою консоль. отправь что в консоли автору мода (или шахмат) и перезапусти игру что бы ошибка пропала. если хочешь продолжить и тебе неважно на ошибку то нажми Enter в консоли")
+                        snow_error()
+                        input()
+                    
+
                 self.root.after(self.speed,frame)
+
             frame()
         else:
             print("такого режима не сушествует.")
