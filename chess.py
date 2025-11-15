@@ -9,7 +9,8 @@ import gc # отключение включение сборшика мусор�
 import math # матиматика
 import json # json разбор
 import threading as th # потоки
-import contextlib # для wich window
+import contextlib # для wich 
+from copy import deepcopy # для глубокого копирования
 #import neiro #потом будет использоваться для ии
 
 def is_comp(v, v2):
@@ -30,14 +31,15 @@ def is_comp(v, v2):
     print('small version')
     print('return False')
     return False
-versions_chess = {'2.1', '2.2', '2.3', '2.4', '2.5'}
+versions_chess = {'2.1', '2.2', '2.3', '2.4', '2.5', '2.6'}
 #вормат vChess: (vModule, vVector)
 comp_table = {
     '2.1': ('2.0', '2.0'),
     '2.2': ('2.0', '2.0'),
     '2.3': ('2.0', '2.0'),
     '2.4': ('2.0', '2.0'),
-    '2.5': ('2.0', '2.0')
+    '2.5': ('2.0', '2.0'),
+    '2.6': ('2.0', '2.0')
 }
 class problem_comp():
     def __init__(self, v1, v2, module):
@@ -95,8 +97,11 @@ v2.4
 
 v2.5
 Теперь обновление шахмат более понятнее и продуманнее. появился gui интерфейс во время обновления. и новые заготовки для случаев когда в проекте будет более 60 файлов. ведь раньше это с маштабом в 60 файлов могло заблокировать по ip за превышение лимита запросов в час. также увеличенна скорость загрузки нового обновления. Также улучшена обработка ошибок. теперь вместо моментального закрытия программы или зависания показывается что за ошибка и просьба отправить её автору созданного кода. также некоторые ошибки (например при обновлении) ещё и переводятся на язык понятный всем (почти).
+
+v2.6
+Теперь к gui обновления добавился прогрессбар. и теперь бот теперь понимает: "если эта штука попадёт сюда то будет очень плохо". пример ситуации когда срабатывает тригер опасности: "стоит белый король в углу. сверху пешки, снизу стенна. справа конец доски. а слева ничего нет. при этом есть чёрная лодья котороя может просто пойти вверх (от чёрных) и поставить шах и мат. тогда бот увидит сразу что будет если сюда пойдёт лодья"
 """
-__version__ = '2.5'
+__version__ = '2.6'
 #size = 600
 heightButtons = 50
 from chess_module import *
@@ -149,15 +154,35 @@ def the_window_all_close(window):
             window.destroy()
 col1 = "#ff0000"
 col2 = "#00ff00"
+class progresbar():
+    def __init__(self, x, y, width, height, canvas, base_color='green', color_progress=col2, color_no_progress=col1, padding=2):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.canvas = canvas
+        self.padding = padding
+        self.base = canvas.create_rectangle(x,y,x+width,y+height, fill=base_color)
+        self.in_base = canvas.create_rectangle(x+padding,y+padding,x+width-padding,y+height-padding, fill=color_no_progress)
+        self.progress_display = canvas.create_rectangle(x,y,x,y+height, fill=color_progress)
+    def update(self, progress):
+        self.canvas.coords(self.progress_display, self.x+self.padding, self.y+self.padding, self.x+(self.width-self.padding)*progress, self.y+self.height-self.padding)
+    def destroy(self):
+        self.canvas.delete(self.base)
+        self.canvas.delete(self.progress_display)
+    
 is_error = 0
+error_trace_back = None
 def paralel_for_updating(fn, colection, *args, at_time=8, **kwargs):
     global is_error
+    global error_trace_back
     updating_window = tk.Tk()
     with the_window_all_close(updating_window):
         updating_window.geometry("300x150")
         updating_window.title("updating chess")
         updating_window.resizable(width=False, height=False)
         canvas = tk.Canvas(updating_window, bg=col1)
+        progress_bar = progresbar(300*0.2, int(150*0.7), 300*0.6, 150*0.2, canvas)
         text_proces = canvas.create_text(150,int(150/2), text="files loaded: 0\navg time left: unknown\n0% is loaded")
         canvas.pack(fill = 'both',expand = True)
         updating_window.update()
@@ -187,25 +212,44 @@ def paralel_for_updating(fn, colection, *args, at_time=8, **kwargs):
                     if is_error:
                         need_stop = True
                     counter += 1
-                    canvas.itemconfig(text_proces, text=f"files loaded: {counter}\navg time left: {(time()-start_time)/counter:.1f}\n{counter/len(colection)*100:.2f}% is loaded")
-                    canvas.configure(bg=interpolate_color(col1, col2, counter/len(colection)))
+                    progress = counter/len(colection)
+                    canvas.itemconfig(text_proces, text=f"files loaded: {counter}\navg time left: {(time()-start_time)/counter:.1f}\n{progress*100:.2f}% is loaded")
+                    canvas.configure(bg=interpolate_color(col1, col2, progress))
+                    progress_bar.update(progress)
                     updating_window.update()
                 if need_stop:
                     updating_window.destroy()
                     if is_error == 1:
                         messagebox.askokcancel("Error", "Произошла ошибка сети.")
+                    elif is_error == 2:
+                        messagebox.askokcancel("Error", "Превышенно время ожидания ответа от сервера.")
+                    elif is_error == 3:
+                        res = messagebox.askokcancel("Error", "Произошла ошибка при записи в файл. нажмите cancel если стчитаете что это не баг.")
+                        if not res:
+                            messagebox.askokcancel("Error", "я открою консоль. отправь то что в консоли автору шахмат")
+                            snow_console()
+                            print(error_trace_back)
                     else:
-                        messagebox.askokcancel("Error", "Превышенно время ожидания ответа.")
+                        res = messagebox.askokcancel("Error", "Вовремя отправки и разкодирования запроса сервера произошла ошибка. нажмите cancel если стчитаете что это не баг")
+                        if not res:
+                            messagebox.askokcancel("Error", "я открою консоль. отправь то что в консоли автору шахмат")
+                            snow_console()
+                            print(error_trace_back)
+
+
                     is_error = 0
+                    error_trace_back = None
                     return 1
                 break
         canvas.itemconfig(text_proces, text=f"files loaded: {counter}\navg time left: 0\n{counter/len(colection)*100:.2f}% is loaded\n loaded: successfully")
+        progress_bar.update(1)
 
         updating_window.update()
         sleep(1)
 def update_file_from_github(file_update, dir_files):
     global is_error
     global past_call
+    global error_trace_back
     url_to_file = f"{URL_REPOSITOR_DOWLOAD}/{file_update}"
     try:
         with urllib.request.urlopen(url_to_file, timeout=10) as response:
@@ -215,9 +259,18 @@ def update_file_from_github(file_update, dir_files):
         is_error = 1
     except TimeoutError:
         is_error = 2
-    path_to_file = dir_files+file_update
-    with open(path_to_file, 'wb') as file:
-        file.write(code)
+    except:
+        is_error = 4
+        import traceback
+        error_trace_back = traceback.format_exc() 
+    try:
+        path_to_file = dir_files+file_update
+        with open(path_to_file, 'wb') as file:
+            file.write(code)
+    except:
+        is_error=3
+        import traceback
+        error_trace_back = traceback.format_exc() 
 def snow_console():
     from ctypes import windll
     windll.user32.ShowWindow(windll.kernel32.GetConsoleWindow(), True)
@@ -612,6 +665,12 @@ class game():
             def Control_s(key):
                 saveF()
             self.root.bind("<Control-s>",Control_s)
+            def Control_Shift_s(key):
+                snow_console()
+            self.root.bind("<Control-S>",Control_Shift_s)
+            def Control_Shift_m(key):
+                print(self.map)
+            self.root.bind("<Control-M>",Control_Shift_m)
             def Control_u(key):
                 try:
                     update()
@@ -632,6 +691,25 @@ class game():
                 print(self.histPos)
             self.root.bind("<c>",clear_hist)
             #curcle
+            #вспомогательные менеджеры контента
+            from contextlib import contextmanager
+            @contextmanager
+            def imagine_step(ob, step):
+                last_pos = deepcopy(ob.pos)
+                try:
+                    ob.pos += step
+                except ValueError:
+                    pass
+                try:
+                    yield
+                finally:
+                    ob.pos = last_pos
+                    # ob.pos -= step
+                    # print("imagine_step:", last_pos, ob.pos)
+                    # if last_pos != ob.pos:
+                    #     raise ValueError("is not good")
+
+            #функции бота
             def in_map(vec):
                 return vec[0]>0 and vec[0]<=8 and vec[1]>0 and vec[1]<=8
             def attak(ob,noname=False): #возращяет отакует ли введённую фигуру
@@ -689,8 +767,45 @@ class game():
                                 pice_best_figure = pice(ob)
                 ob.pos = st_pos
                 return pice_best_figure
+            # def move_can_attak(ob,step,noname=False): # возращяет есть ли возможность отаковать фигуры после хода
+            #     # поменялось с да нет и с фигура нет на число
+            #     m = [(tuple(f.pos), f.name) for f in self.map]
+            #     try:
+            #         print(ob.pos)
+            #         with imagine_step(ob, v.Vector2(mas=step)):
+            #             steps = get_steps(ob)
+            #             if noname:
+            #                 movs = {tuple(ob.pos+v.Vector2(mas=stepf)) for stepf in steps}
+            #                 best_figure = None
+            #                 pice_best_figure = 0
+            #                 if len(steps)!=0:
+            #                     for f in self.map:
+            #                         if f.b != ob.b and get_pice(f)>pice_best_figure and (tuple(f.pos) in movs):
+            #                             return True
+            #                 #otvet = any((True for f in self.map if f.b != ob.b and any((True for stepMyF in steps if f.pos==new_pos+v.Vector2(mas=stepMyF)))))
+            #             else:
+            #                 movs = {tuple(ob.pos+v.Vector2(mas=stepf)) for stepf in steps}
+            #                 def pice(f):
+            #                     return get_pice(f)/(get_pice(ob) if protection(f) else 1)
+            #                 pice_best_figure = 0
+            #                 if len(steps)!=0:
+            #                     for f in self.map:
+            #                         if f.b != ob.b and pice(f)>pice_best_figure and (tuple(f.pos) in movs):
+            #                             best_figure = f
+            #                             pice_best_figure = pice(ob)
+            #             return pice_best_figure
+            #     finally:
+            #         print("move_can_attack:", m==[(tuple(f.pos), f.name) for f in self.map])
             def can_atack(ob,step): #возвращяет атакует ли фигура данным ходом
                 return self.iscollide(ob.pos+v.Vector2(mas=step))
+            def can_step(ob, step):
+                new_pos = ob.pos+step
+                if in_map(new_pos):
+                    isc = self.iscollide(ob.pos+v.Vector2(mas=step))
+                    if not isc or isc.b!=ob.b:
+                        return True
+                return False
+
             def path_find(ob,step=None,noname=False):
                 if step is None:
                     new_pos = ob.pos
@@ -742,21 +857,18 @@ class game():
                 return False
             def move_protection(ob, step): #возвращяет будетли фигура засшищять после хода
                 step = v.Vector2(mas=step)
-                new_pos = ob.pos + step
-                st_pos = ob.pos
-                ob.pos = new_pos
-                def MyIscollide(pos):
-                    res = self.iscollide(pos)
-                    if res and res.b != ob.b:
-                        return res
-                steps = {tuple(step) for step in get_steps(ob,MyIscollide)}
-                best_pice = 0
-                best_figure = None
-                for f in self.map:
-                    if f.b == ob.b and (f is not ob) and (tuple(f.pos) in steps) and get_pice(f)>best_pice:
-                        best_pice = get_pice(f)
-                        best_figure = f.name
-                ob.pos = st_pos
+                with imagine_step(ob, step):
+                    def MyIscollide(pos):
+                        res = self.iscollide(pos)
+                        if res and res.b != ob.b:
+                            return res
+                    steps = {tuple(step) for step in get_steps(ob,MyIscollide)}
+                    best_pice = 0
+                    best_figure = None
+                    for f in self.map:
+                        if f.b == ob.b and (f is not ob) and (tuple(f.pos) in steps) and get_pice(f)>best_pice:
+                            best_pice = get_pice(f)
+                            best_figure = f.name
                 return best_figure
             def protection(ob,step=None):  #возвращяет зашищяет ли фигуру
                 if step == None:
@@ -777,6 +889,19 @@ class game():
 ##                            if any((f.pos+v.Vector2(mas=stepf)==new_pos) for stepf in steps):
 ##                                return True
 ##                    return False
+            def get_steps_after_move(ob, step):
+                with imagine_step(ob, step):
+                    return get_steps(ob)
+            def move_danger(ob, step=None): # говорит безопасно ли передвинутся (или стоять здесь). эта функция пытается исключить лёгкость взятия фигуры бота (и попытай поставить мат)
+                if step is None:
+                    step = (0,0)
+                step = v.Vector2(mas=step)
+                with imagine_step(ob, step):
+                    steps_player = {tuple(f.pos+v.Vector2(mas=step1)+v.Vector2(mas=step2)) for f in self.map if f.b != ob.b for step1 in get_steps(f) if can_step(f, v.Vector2(mas=step1)) for step2 in get_steps_after_move(f, v.Vector2(mas=step1))}
+                    if tuple(ob.pos) in steps_player:
+                        return True
+                    return False
+
             def end_path(ob): #возвращяет дойдёт ли пешка до конца
                 return ((((not ob.b) and ob.pos[1] == 2) or (ob.b and ob.pos[1] == 7)) if ob.name == "пешка" else False)
 
@@ -930,6 +1055,7 @@ class game():
                                     #print(f"start work: {ob}")
                                     if self.mode == "bot" or self.mode.startswith('bot2'):
                                         #print(f"start work: {ob}")
+                                        m = [(tuple(f.pos), f.name) for f in self.map]
                                         steps = tuple((1*
                                                     (1.2 if ob.name == "пешка" else 1)*
                                                     (1.1 * (ob.steps+1) if ob.name == "пешка" else 1)*
@@ -943,9 +1069,12 @@ class game():
                                                     ((5*get_pice(can_atack(ob,step))) if can_atack(ob,step) else 1)*
                                                     ((0.5*get_pice(ob)/(get_pice(attak(ob)) if ob.name != "король" and protection(ob) else 1)) if attak(ob,noname=True) else 1)/  
                                                     (5*get_npice(path_find(ob,step)) if path_find(ob,step,noname = True) else 1)/
-                                                    (5*get_pice(ob) if attak_move(ob,step) else 1)
+                                                    (5*get_pice(ob) if attak_move(ob,step) else 1)*
+                                                    (2*get_pice(ob) if move_danger(ob) else 1)/
+                                                    (2*get_pice(ob) if move_danger(ob, step) else 1)
                                                     ,step)
                                                 for step in steps)
+                                        print('loop:', m == [(tuple(f.pos), f.name) for f in self.map])
                                         if self.mode.startswith('bot2'):
                                             # best = max(step_data[0] for step_data in steps)
                                             # best_steps = get_best_steps(steps,best)
@@ -1001,7 +1130,6 @@ class game():
         else:
             print("такого режима не сушествует.")
         self.root.mainloop()
-hide_console()
 def load_mode(path):
     with open(path, 'r', encoding='utf-8') as f:
         text = f.read()
@@ -1041,16 +1169,18 @@ def load_modes(folder='./modes'):
         if mode_exec is not None:
             modes_exec.append(mode_exec)
     return modes_exec
-mode = multiple_choice("Выбор режима","выберете режим:\n",('play','random','bot', 'bot2', 'bot2 vs bot2','bot_random'))
-messagebox.askquestion("Помошь по шахматам","help - Control-h")
-if messagebox.askyesno("Загрузить?","Загрузить файл?"):
-    file = filedialog.askopenfilename(
-        title="Выберите файл для открытия",
-        filetypes=(("Text Files", "*.txt"),)
-    )
-    text = None
-else:
-    file = False
-text = "лодья 1.0 1.0 0 True лодья 8.0 1.0 0 True пешка 1.0 2.0 0 True пешка 2.0 2.0 0 True пешка 3.0 2.0 0 True пешка 4.0 2.0 0 True пешка 5.0 2.0 0 True пешка 6.0 2.0 0 True пешка 7.0 2.0 0 True пешка 8.0 2.0 0 True конь 2.0 1.0 0 True конь 7.0 1.0 0 True слон 6.0 1.0 0 True слон 3.0 1.0 0 True ферзь 5.0 1.0 0 True король 4.0 1.0 0 True лодья 1.0 8.0 0 False лодья 8.0 8.0 0 False конь 2.0 8.0 0 False конь 7.0 8.0 0 False слон 6.0 8.0 0 False слон 3.0 8.0 0 False ферзь 5.0 8.0 0 False король 4.0 8.0 0 False пешка 1.0 7.0 0 False пешка 2.0 7.0 0 False пешка 3.0 7.0 0 False пешка 4.0 7.0 0 False пешка 5.0 7.0 0 False пешка 6.0 7.0 0 False пешка 7.0 7.0 0 False пешка 8.0 7.0 0 False True "
-game = game(mode,file,text)
-game.start() 
+if __name__ == "__main__":
+    hide_console()
+    mode = multiple_choice("Выбор режима","выберете режим:\n",('play','random','bot', 'bot2', 'bot2 vs bot2','bot_random'))
+    messagebox.askquestion("Помошь по шахматам","help - Control-h")
+    if messagebox.askyesno("Загрузить?","Загрузить файл?"):
+        file = filedialog.askopenfilename(
+            title="Выберите файл для открытия",
+            filetypes=(("Text Files", "*.txt"),)
+        )
+        text = None
+    else:
+        file = False
+    text = "лодья 1.0 1.0 0 True лодья 8.0 1.0 0 True пешка 1.0 2.0 0 True пешка 2.0 2.0 0 True пешка 3.0 2.0 0 True пешка 4.0 2.0 0 True пешка 5.0 2.0 0 True пешка 6.0 2.0 0 True пешка 7.0 2.0 0 True пешка 8.0 2.0 0 True конь 2.0 1.0 0 True конь 7.0 1.0 0 True слон 6.0 1.0 0 True слон 3.0 1.0 0 True ферзь 5.0 1.0 0 True король 4.0 1.0 0 True лодья 1.0 8.0 0 False лодья 8.0 8.0 0 False конь 2.0 8.0 0 False конь 7.0 8.0 0 False слон 6.0 8.0 0 False слон 3.0 8.0 0 False ферзь 5.0 8.0 0 False король 4.0 8.0 0 False пешка 1.0 7.0 0 False пешка 2.0 7.0 0 False пешка 3.0 7.0 0 False пешка 4.0 7.0 0 False пешка 5.0 7.0 0 False пешка 6.0 7.0 0 False пешка 7.0 7.0 0 False пешка 8.0 7.0 0 False True "
+    game = game(mode,file,text)
+    game.start() 
