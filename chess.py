@@ -31,7 +31,7 @@ def is_comp(v, v2):
     print('small version')
     print('return False')
     return False
-versions_chess = {'2.1', '2.2', '2.3', '2.4', '2.5', '2.6'}
+versions_chess = {'2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7'}
 #вормат vChess: (vModule, vVector)
 comp_table = {
     '2.1': ('2.0', '2.0'),
@@ -39,7 +39,8 @@ comp_table = {
     '2.3': ('2.0', '2.0'),
     '2.4': ('2.0', '2.0'),
     '2.5': ('2.0', '2.0'),
-    '2.6': ('2.0', '2.0')
+    '2.6': ('2.0', '2.0'),
+    '2.7': ('2.0', '2.0')
 }
 class problem_comp():
     def __init__(self, v1, v2, module):
@@ -100,8 +101,11 @@ v2.5
 
 v2.6
 Теперь к gui обновления добавился прогрессбар. и теперь бот теперь понимает: "если эта штука попадёт сюда то будет очень плохо". пример ситуации когда срабатывает тригер опасности: "стоит белый король в углу. сверху пешки, снизу стенна. справа конец доски. а слева ничего нет. при этом есть чёрная лодья котороя может просто пойти вверх (от чёрных) и поставить шах и мат. тогда бот увидит сразу что будет если сюда пойдёт лодья"
+
+v2.7
+Теперь бот видит как поставить мат.
 """
-__version__ = '2.6'
+__version__ = '2.7'
 #size = 600
 heightButtons = 50
 from chess_module import *
@@ -134,7 +138,8 @@ import sys
 
 URL_REPOSITOR_DOWLOAD = "https://raw.githubusercontent.com/andrey2copy1234-code/chess/main"
 URL_REPOSITOR_PUBLICK = "https://github.com/andrey2copy1234-code/chess"
-files_update = ['chess.py', 'chess_module.py', 'vector.py']
+# files_update = ['chess.py', 'chess_module.py', 'vector.py']
+files_update = None
 def fast_iter(iteration, at_time):
     for i in range(0, len(iteration), at_time):
         yield (iteration[i2] for i2 in range(i, min(i+at_time, len(iteration))))
@@ -284,16 +289,20 @@ def base_snow_error():
 past_call = 0
 def update():
     global past_call
+    global files_update
+
     t = time()
-    if t-past_call>90*len(files_update): #нельзя чаше чем в 1 минуту вызывать но это на всякий случай
+    if not files_update or t-past_call>90*len(files_update): #нельзя чаше чем в 1 минуту вызывать но это на всякий случай
         ot = messagebox.askyesno("Обновление", "Обновить шахматы? (но рекоминдуется способ из справки)")
         if ot:
             ot = messagebox.askyesno("Обновление", "Создать отдельную папку для новой версии шахмат?")
             if ot:
                 dir_files = filedialog.askdirectory()
+                if not dir_files:
+                    return 0
                 name_dir = simpledialog.askstring("Создание папки", "введите имя папки")
                 dir_files += "/"+name_dir+"/"
-                if not dir_files:
+                if not name_dir:
                     return 0
                 try:
                     os.makedirs(dir_files)
@@ -301,6 +310,28 @@ def update():
                     pass
             else:
                 dir_files = "./"
+            if files_update == None:
+                try:
+                    with urllib.request.urlopen(URL_REPOSITOR_DOWLOAD+"/files_update", timeout=10) as response:
+                        json_bytes = response.read()
+                        past_call = time()
+                        print(json_bytes)
+                except urllib.error.URLError:
+                    messagebox.askokcancel("Error", "Произошла ошибка сети.")
+                    return 1
+                except TimeoutError:
+                    messagebox.askokcancel("Error", "Превышенно время ожидания ответа от сервера.")
+                    return 1
+                try:
+                    json_string = json_bytes.decode('utf-8')
+                    files_update = json.loads(json_string)
+                except:
+                    messagebox.askokcancel(f"Error", "Клиенту не удалось распознать ответ сервера.")
+                    return 1
+                if type(files_update) is not list or not all(type(file) is str for file in files_update):
+                    messagebox.askokcancel("Error", "Клиент не понял странный ответ сервера.")
+                    return 1
+                print("loaded:", f"{{'files_update': {files_update}}}")
             try:
                 paralel_for_updating(update_file_from_github, files_update, dir_files)
             except:
@@ -767,35 +798,6 @@ class game():
                                 pice_best_figure = pice(ob)
                 ob.pos = st_pos
                 return pice_best_figure
-            # def move_can_attak(ob,step,noname=False): # возращяет есть ли возможность отаковать фигуры после хода
-            #     # поменялось с да нет и с фигура нет на число
-            #     m = [(tuple(f.pos), f.name) for f in self.map]
-            #     try:
-            #         print(ob.pos)
-            #         with imagine_step(ob, v.Vector2(mas=step)):
-            #             steps = get_steps(ob)
-            #             if noname:
-            #                 movs = {tuple(ob.pos+v.Vector2(mas=stepf)) for stepf in steps}
-            #                 best_figure = None
-            #                 pice_best_figure = 0
-            #                 if len(steps)!=0:
-            #                     for f in self.map:
-            #                         if f.b != ob.b and get_pice(f)>pice_best_figure and (tuple(f.pos) in movs):
-            #                             return True
-            #                 #otvet = any((True for f in self.map if f.b != ob.b and any((True for stepMyF in steps if f.pos==new_pos+v.Vector2(mas=stepMyF)))))
-            #             else:
-            #                 movs = {tuple(ob.pos+v.Vector2(mas=stepf)) for stepf in steps}
-            #                 def pice(f):
-            #                     return get_pice(f)/(get_pice(ob) if protection(f) else 1)
-            #                 pice_best_figure = 0
-            #                 if len(steps)!=0:
-            #                     for f in self.map:
-            #                         if f.b != ob.b and pice(f)>pice_best_figure and (tuple(f.pos) in movs):
-            #                             best_figure = f
-            #                             pice_best_figure = pice(ob)
-            #             return pice_best_figure
-            #     finally:
-            #         print("move_can_attack:", m==[(tuple(f.pos), f.name) for f in self.map])
             def can_atack(ob,step): #возвращяет атакует ли фигура данным ходом
                 return self.iscollide(ob.pos+v.Vector2(mas=step))
             def can_step(ob, step):
@@ -1012,6 +1014,53 @@ class game():
                     ob.pos = pos_ob
                     return res
                 return 1
+            # def counter_poins(b):
+            #     return sum(0
+            #         +get_pice(ob)
+            #         +(3 if protection(ob) else 0)
+            #         -(len(get_steps(get_king(b)))*0.5)
+            #         for ob in self.map if ob.b==b
+            #     )
+            # class minimax_vars():
+            #     best_step = None
+            #     best_counter_step = None
+            # def minimax(ob=None, step=None, steps=3, first_step=None):
+            #     if step is None:
+            #         step = (0,0)
+            #     self.step = not self.step
+            #     with imagine_step(self.map[0] if step == (0,0) else ob, step):
+            #         all_steps = (
+            #             (ob, step)
+            #             for ob in self.map if ob.b == self.step
+            #             for step in get_steps(ob) if can_step(ob, step) and can_attak_king(ob, step)
+            #         )
+            #         for ob, step in all_steps:
+            #             if steps == 0:
+            #                 if self.step != first_step[0].b:
+            #                     self.step = first_step[0].b
+            #                 points = counter_poins(ob.b)
+            #                 if minimax_vars.best_counter_step is None or points>minimax_vars.best_counter_step:
+            #                     minimax_vars.best_step = first_step
+            #                     minimax_vars.best_counter_step = points
+            #                 continue
+            #             self.step = not self.step
+            #             res = minimax(ob, step, steps-1, (ob, step) if first_step is None else first_step)
+            #             if res:
+            #                 return res
+            #         if steps==0:
+            #             best_step = minimax_vars
+            #             minimax_vars.best_step = None
+            #             minimax_vars.best_counter_step = None
+            #             return best_step
+            def is_checkmase(ob, step):
+                step = v.Vector2(mas=step)
+                with imagine_step(ob, step):
+                    all_my_attack_pos = {tuple(ob.pos+v.Vector2(mas=step_attack)) for ob in self.map for step_attack in get_steps(ob) if ob.b==self.step and can_step(ob, step)}
+                    k = get_king(not ob.b)
+                    return tuple(k.pos) in all_my_attack_pos and len([None for _ in get_steps(k) if can_step(k, v.Vector2(mas=_)) and tuple(k.pos+v.Vector2(mas=_)) not in all_my_attack_pos])==0
+
+
+
             def frame():
                 try:
                     if not self.victory and self.mode != "play" and (self.mode != 'bot2' or not self.step):
@@ -1071,7 +1120,8 @@ class game():
                                                     (5*get_npice(path_find(ob,step)) if path_find(ob,step,noname = True) else 1)/
                                                     (5*get_pice(ob) if attak_move(ob,step) else 1)*
                                                     (2*get_pice(ob) if move_danger(ob) else 1)/
-                                                    (2*get_pice(ob) if move_danger(ob, step) else 1)
+                                                    (2*get_pice(ob) if move_danger(ob, step) else 1)*
+                                                    (5 if is_checkmase(ob, step) else 1)
                                                     ,step)
                                                 for step in steps)
                                         print('loop:', m == [(tuple(f.pos), f.name) for f in self.map])
@@ -1110,6 +1160,8 @@ class game():
                                 else:
                                     self.victory = True
                                     self.canvas.itemconfigure(self.label,text = ("белые победили" if not self.step else "чёрные победили"))
+                        # if self.mode == "bot3":
+                        #     minimax()
                         gc.enable()
                 except:
                     messagebox.askokcancel("Error", "при работе основного цикла игры возникла ошибка. я открою консоль. отправь что в консоли автору шахмат и перезапусти игру что бы ошибка пропала. если хочешь продолжить и тебе неважно на ошибку то нажми Enter в консоли")
