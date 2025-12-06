@@ -4,7 +4,7 @@ from tkinter import messagebox
 import tkinter as tk
 from time import time
 import threading as th
-__version__ = '2.1'
+__version__ = '2.2'
 
 item_select = None
 def old_multiple_choice(title,suppl,items,select_val=True,break_val=None,dialogType="askyesno",dialogFn=None):
@@ -294,6 +294,10 @@ class figure():
         return f"{self.name} {self.pos[0]} {self.pos[1]} {self.steps} {self.b} "
     def __repr__(self):
         return f"figure(name = {self.name},pos = ({self.pos[0]},{self.pos[1]}),isWhile = {self.b})"
+    def __setattr__(self, name, value):
+        if name == 'pos' and any(not (0<val <= 8) for val in value):
+            raise ValueError(f"pos ({value}) not in range")
+        super().__setattr__(name, value)
     def init(self):
         newPos = (self.pos-v.Vector2(mas=(1,1)))/8*size+v.Vector2(mas=(size/16,size/16))
         self.Frame = self.canvas.create_image(newPos[0],newPos[1],image = self.pictures[f"{self.name} {'w' if self.b else 'b'}"])
@@ -653,11 +657,12 @@ def saveV(game, path):
     
 
 class FrameC():
-    __slots__ = ('Frame','pos','move')
-    def __init__(self,Frame,pos,move):
+    __slots__ = ('Frame','pos','move', 'eval_step_frame')
+    def __init__(self,Frame,pos,move, eval_step=None):
         self.Frame = Frame
         self.pos = pos
         self.move = move
+        self.eval_step_frame = eval_step
 def hide_console():
     from ctypes import windll
     windll.user32.ShowWindow(windll.kernel32.GetConsoleWindow(), False)
