@@ -31,7 +31,7 @@ def is_comp(v, v2):
     print('small version')
     print('return False')
     return False
-versions_chess = {'2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7'}
+versions_chess = {'2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8'}
 #вормат vChess: (vModule, vVector)
 comp_table = {
     '2.1': ('2.0', '2.0'),
@@ -40,7 +40,8 @@ comp_table = {
     '2.4': ('2.0', '2.0'),
     '2.5': ('2.0', '2.0'),
     '2.6': ('2.0', '2.0'),
-    '2.7': ('2.0', '2.0')
+    '2.7': ('2.0', '2.0'),
+    '2.8': ('2.2', '2.0'),
 }
 class problem_comp():
     def __init__(self, v1, v2, module):
@@ -104,8 +105,11 @@ v2.6
 
 v2.7
 Теперь бот видит как поставить мат.
+
+v2.8
+Теперь bot2 и bot лучше думают. они теперь не думают об странных ходах из-за того что ещё теперь учитывают что ваши ходы и их ходы могут быть продуманны так что боты думают что ход хороший но на самом деле они забыли про то что могут съесть или вы можете съесть а они продумали ходы на перёд так поэтому. добавлен стратигически-продуманный режим minimax но он задуман как минимум пока что для мощьных PC так как он очень медленный. теперь минимальная версия модуля 2.2
 """
-__version__ = '2.7'
+__version__ = '2.8'
 #size = 600
 heightButtons = 50
 from chess_module import *
@@ -234,12 +238,16 @@ def paralel_for_updating(fn, colection, *args, at_time=8, **kwargs):
                             messagebox.askokcancel("Error", "я открою консоль. отправь то что в консоли автору шахмат")
                             snow_console()
                             print(error_trace_back)
-                    else:
+                    elif is_error == 4:
                         res = messagebox.askokcancel("Error", "Вовремя отправки и разкодирования запроса сервера произошла ошибка. нажмите cancel если стчитаете что это не баг")
                         if not res:
                             messagebox.askokcancel("Error", "я открою консоль. отправь то что в консоли автору шахмат")
                             snow_console()
                             print(error_trace_back)
+                    elif is_error == 5:
+                        messagebox.askokcancel("Error", "404 запрашиваемый файл не найден.")
+                    else:
+                        messagebox.askokcancel("Error", "сервер отправил непонятный код возврата")
 
 
                     is_error = 0
@@ -248,7 +256,6 @@ def paralel_for_updating(fn, colection, *args, at_time=8, **kwargs):
                 break
         canvas.itemconfig(text_proces, text=f"files loaded: {counter}\navg time left: 0\n{counter/len(colection)*100:.2f}% is loaded\n loaded: successfully")
         progress_bar.update(1)
-
         updating_window.update()
         sleep(1)
 def update_file_from_github(file_update, dir_files):
@@ -258,17 +265,23 @@ def update_file_from_github(file_update, dir_files):
     url_to_file = f"{URL_REPOSITOR_DOWLOAD}/{file_update}"
     try:
         with urllib.request.urlopen(url_to_file, timeout=10) as response:
+            code_err = response.getcode()
             code = response.read()
         past_call = time()
-    except urllib.error.URLError:
-        is_error = 1
-    except TimeoutError:
-        is_error = 2
+    except urllib.error.URLError as err:
+        if isinstance(err.reason, TimeoutError):
+            is_error = 2
+        else:
+            is_error = 1
     except:
         is_error = 4
         import traceback
         error_trace_back = traceback.format_exc() 
     try:
+        if code_err == 404:
+            is_error = 5
+        elif code_err != 200:
+            is_error = 6
         path_to_file = dir_files+file_update
         with open(path_to_file, 'wb') as file:
             file.write(code)
@@ -313,14 +326,25 @@ def update():
             if files_update == None:
                 try:
                     with urllib.request.urlopen(URL_REPOSITOR_DOWLOAD+"/files_update", timeout=10) as response:
+                        code_err = response.getcode()
                         json_bytes = response.read()
                         past_call = time()
                         print(json_bytes)
-                except urllib.error.URLError:
-                    messagebox.askokcancel("Error", "Произошла ошибка сети.")
-                    return 1
                 except TimeoutError:
+                    print("timeout error")
                     messagebox.askokcancel("Error", "Превышенно время ожидания ответа от сервера.")
+                    return 1
+                except urllib.error.URLError as err:
+                    if isinstance(err.reason, TimeoutError):
+                        messagebox.askokcancel("Error", "Превышенно время ожидания ответа от сервера.")
+                    else:
+                        messagebox.askokcancel("Error", "Произошла ошибка сети.")
+                    return 1
+                if code_err == 404:
+                    messagebox.askokcancel("Error", "Сервер сказал что на нём нет файла который нужен для обновления")
+                    return 1
+                elif code_err != 200:
+                    messagebox.askokcancel("Error", "Сервер дал странный код возврата сигнализируюший о какой-то ошибке")
                     return 1
                 try:
                     json_string = json_bytes.decode('utf-8')
@@ -337,19 +361,6 @@ def update():
             except:
                 messagebox.askokcancel("Error", "новая функция вызвала ошибку. я открою консоль. отправь что в консоли автору")
                 snow_error()
-            # for file_update in files_update:
-            #     url_to_file = f"{URL_REPOSITOR_DOWLOAD}/{file_update}"
-            #     try:
-            #         with urllib.request.urlopen(url_to_file) as response:
-            #             code = response.read()
-            #         past_call = time()
-            #     except urllib.error.URLError:
-            #         messagebox.askokcancel("Error", "Произошла ошибка сети.")
-            #         return 1
-            #     print('return:', '\n'+code.decode('utf-8'))
-            #     path_to_file = dir_files+file_update
-            #     with open(path_to_file, 'wb') as file:
-            #         file.write(code)
             if dir_files == "./":
                 os.execv(sys.executable, [sys.executable] + sys.argv)
     else:
@@ -360,7 +371,7 @@ def update():
 
 
 class game():
-    __slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory','steps','hist','histPos','speed','text','mode', 'modes')
+    __slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory','steps','hist','histPos','speed','text','mode', 'modes', 'snow_analiz_steps')
     #__slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory')
     def __init__(self,mode,file,text):
         self.root = tk.Tk()
@@ -397,6 +408,7 @@ class game():
         self.hist = histStr(getStringSave(self))
         self.histPos = 1
         self.file = file
+        self.snow_analiz_steps = False
         self.load_modes()
     def create_figure(self,*args,**kvargs):
         self.map.append(figure(self.root,self.canvas,self.pictures,self.iscollide,*args,**kvargs))
@@ -434,7 +446,7 @@ class game():
     def CS(self,x,y,sx,sy,fill):
         return self.canvas.create_rectangle(x,y,x+sx,y+sy,fill=fill)
     def start(self):
-        if mode == "play" or mode == "random" or mode[0] == "b":
+        if mode == "play" or mode == "random" or mode[0] == "b" or mode == 'minimax':
             self.Frames = []
             for x in range(0,size,int(size//8)):
                 for y in range(0,size,int(size//8)):
@@ -549,6 +561,8 @@ class game():
                             #print("move")
                             for frame in self.Frames:
                                 self.canvas.delete(frame.Frame)
+                                if frame.eval_step_frame:
+                                    self.canvas.delete(frame.eval_step_frame)
                             self.Frames.clear()
                             f = self.iscollide(pos)
                             s = True
@@ -580,7 +594,7 @@ class game():
                                 data.append(in_nn(step_data))
                                 file.write(json.dumps(data))
                                 file.close()
-                            if self.mode != "bot" and self.mode != "bot2":
+                            if self.mode != "bot" and self.mode != "bot2" and self.mode != 'minimax':
                                 self.step = not self.step
                                 if s:
                                     self.canvas.itemconfigure(self.label,text = ("ходят белые" if self.step else "ходят чёрные"))
@@ -589,7 +603,7 @@ class game():
                                 def f():
                                     self.step = not self.step
                                 self.root.after(200,f)
-                            if self.mode[0] != 'b' or not s:
+                            if (self.mode[0] != 'b' and self.mode!='minimax') or not s:
                                 self.histPos += self.hist.set(getStringSave(self),self.histPos)
                             return None
                         idFr += 1
@@ -601,6 +615,8 @@ class game():
                                 self.highlighted = ob
                                 for frame in self.Frames:
                                     self.canvas.delete(frame.Frame)
+                                    if frame.eval_step_frame:
+                                        self.canvas.delete(frame.eval_step_frame)
                                 self.Frames.clear()
                                 mas = get_steps(ob)
                                 #print(mas)
@@ -611,16 +627,24 @@ class game():
                                         f = self.iscollide(ob.pos+posP)
                                         if not f or f.b != self.step:
                                             newPos = posP+ob.pos-v.Vector(mas=(1,1))
-                                            Frame2 = FrameC(self.CS(newPos[0]*size/8,newPos[1]*size/8,size/8,size/8,fill = 'green'),newPos+v.Vector(mas=(1,1)),posP)
+                                            Frame2 = FrameC(self.CS(newPos[0]*size/8,newPos[1]*size/8,size/8,size/8,fill = 'green'),newPos+v.Vector(mas=(1,1)),posP, 
+                                                            None if not self.snow_analiz_steps else self.canvas.create_text(
+                                                                (newPos[0]+0.5)*size/8,(newPos[1]+0.5)*size/8,
+                                                                text=f"{eval_step(ob, posP):.2f}", fill="#183514"))
                                             
                                             self.Frames.append(Frame2)
                                 for ob2 in self.map:
                                     self.canvas.lift(ob2.Frame)
                                 self.canvas.lift(self.label)
+                                for frame in self.Frames:
+                                    if frame.eval_step_frame:
+                                        self.canvas.lift(frame.eval_step_frame)
                                             
                                 return None
                     for frame in self.Frames:
                         self.canvas.delete(frame.Frame)
+                        if frame.eval_step_frame:
+                            self.canvas.delete(frame.eval_step_frame)
                     self.Frames.clear()
                 if posT.y>size:
                     if posT.x < size/4:
@@ -637,7 +661,7 @@ class game():
                         print(f'[{mode.name}] {type(err).__name__}: {err}')
             self.canvas.bind("<ButtonPress-1>",clickReal)
             def Control_H(key):
-                choice = messagebox.askquestion("помошь по шахматам №1", f"этот проект маштабен. но давайте объясню с управлением:\n  Control-H это вызвать это\n  Control-z вернуть обратно СВОЙ ход\n  Control-Shift-Z это вернуть всё как было до Control-z\n  Left (стрелочка) - проматывает видио на шаг назад.\n  Right (стрелочка) - проматывает вперёд. если видио закончилось то снимает действее с Left и себя.\n  c - стереть (необратимо) историю. рекомендуется для начала записи видио.\n  m - это переключение режима\n  s - изменяет скорость главного цикла. рекомендуется оставить значение в 20ms\n  Control-u - обновить версию шахмат (но рекумендуется заходить и обновлять по {URL_REPOSITOR_PUBLICK})\n\nтеперь перейдём к окошкам. вы наверное встретите окошки в которых в скобочках слово и через тире другие слова. если нажмёте да - вы отвечаете окошку на вопрос выделенным словом в скобочках. если ответ нет - то проматывайте (с помошью нет) до нужного слова в скобочках\nпродолжить?")
+                choice = messagebox.askquestion("помошь по шахматам №1", f"этот проект маштабен. но давайте объясню с управлением:\n  Control-H это вызвать это\n  Control-z вернуть обратно СВОЙ ход\n  Control-Shift-Z это вернуть всё как было до Control-z\n  Left (стрелочка) - проматывает видио на шаг назад.\n  Right (стрелочка) - проматывает вперёд. если видио закончилось то снимает действее с Left и себя.\n  c - стереть (необратимо) историю. рекомендуется для начала записи видио.\n  m - это переключение режима\n  s - изменяет скорость главного цикла. рекомендуется оставить значение в 20ms\n  Control-u - обновить версию шахмат (но рекумендуется заходить и обновлять по {URL_REPOSITOR_PUBLICK})\n  Control-p это открыть и воспроизвести ходы из человеко-читаемого файла (например e2-e4 потом перенос строки и f7-f6)\n  Control-Alt-a включить онализ какой ход лучше тебе сделать фигурой на которую ты нажал. просто подсвечивает баллы у ходов. где больший бал будет скорее всего лучше ход.\n\nтеперь перейдём к окошкам. вы наверное встретите окошки в которых в скобочках слово и через тире другие слова. если нажмёте да - вы отвечаете окошку на вопрос выделенным словом в скобочках. если ответ нет - то проматывайте (с помошью нет) до нужного слова в скобочках\nпродолжить?")
                 if choice == "yes":
                     choice = messagebox.askquestion("помошь по шахматам №2", "теперь разберёмся с кнопками:\n  restart - перезапускает. если был старт с файла то перезапускает его. для того чтобы перевести в начальное состояние надо два раза нажать restart.\n  open - открывает файл или файл-видио.\n  save - сохраняет файл или файл-видио.\nпродолжить?")
                     if choice == "yes":
@@ -645,7 +669,7 @@ class game():
                         if choice == "yes":
                             choice = messagebox.askquestion("помошь по шахматам №4", "теперь про то что может бот и что он учитывает:\n  плохие ходы - бот никогда не сделает ход который убъёт его короля.\n  взятие - бот понимает что взять лучше чем просто сходить.\n  подставка фигур - бот понимает что подставить свою фигуру тоже самое что и убить её.\n  понимает все зашиты - он понимает что лучше ходом зашитить свою фигуру.\n  понимает что своих не убивать - бот понимает что если убить своего то это будет хуже чем просто сходить.\n  простчитывает взятие до его - бот может поставить фигуру так чтобы после хода она забрала другую.\n\nпродолжить?")
                             if choice == "yes":
-                                choice = messagebox.askquestion("помошь по шахматам №5", "популярные вопросы и ответы на их:\n  можно ли как-то уменьшить и увеличить окно? - нет, нельзя. окно всегда размером 600x600.\n  можно ли цифры и буквы вынести за пределы поля? - нет, нельзя.\n  почему на видео записовоется не то что надо? - сохранение видио это beta функция. сохранение видео пока работает не очень идеально. поэтому можно нажать (в начале записи) С (англискую и маленькую) для исправления этого. также вы возможно столкнулись с багом того что при использовании Control-z не правильно записывается видео.\n  почему это 'видео' .txt файл? - под видио я имею ввиду любую запись множества ходов. если вы хотите видио .mp4 а не .txt который только эта программа прочитать может то я вам могу предложить устоновить программы или использовать сочетания клавишь на windows для записи .mp4 видио.\n  чем bot отличается от bot2? - bot может делать неверные действия но плюс минус правильные а bot2 только самые лучшие как он постчитал. также bot работает намного медленее bot2. советую использовать bot2.\n  почему сочетания клавишь перестают работать? - вы наверное стоите на руской раскладке а не на англиской.\n  как поиграть в эти шахматы онлайн? - у меня есть chess_online это отдельный проект в который вы тоже можете поиграть. покачто от сюда в chess_online перейти нельзя через режимы. надо запускать другую программу.\n  как начать запись видео? - вам не нужно её начинать. она всегда включенна. если вы хотите чтобы всё что раньше записалось удалилось то нажмите C англискую\n\nесли что-то не поняли то нажмите 'да' в этом окошке.")
+                                choice = messagebox.askquestion("помошь по шахматам №5", "популярные вопросы и ответы на их:\n  можно ли как-то уменьшить и увеличить окно? - нет, нельзя. окно всегда размером 600x600.\n  можно ли цифры и буквы вынести за пределы поля? - нет, нельзя.\n  почему на видео записовоется не то что надо? - сохранение видио это beta функция. сохранение видео пока работает не очень идеально. поэтому можно нажать (в начале записи) С (англискую и маленькую) для исправления этого. также вы возможно столкнулись с багом того что при использовании Control-z не правильно записывается видео.\n  почему это 'видео' .txt файл? - под видио я имею ввиду любую запись множества ходов. если вы хотите видио .mp4 а не .txt который только эта программа прочитать может то я вам могу предложить устоновить программы или использовать сочетания клавишь на windows для записи .mp4 видио.\n  чем bot отличается от bot2? - bot может делать неверные действия но плюс минус правильные а bot2 только самые лучшие как он постчитал. также bot работает намного медленее bot2. советую использовать bot2.\n  почему сочетания клавишь перестают работать? - вы наверное стоите на руской раскладке а не на англиской.\n  как поиграть в эти шахматы онлайн? - у меня есть chess_online это отдельный проект в который вы тоже можете поиграть. покачто от сюда в chess_online перейти нельзя через режимы. надо запускать другую программу.\n  как начать запись видео? - вам не нужно её начинать. она всегда включенна. если вы хотите чтобы всё что раньше записалось удалилось то нажмите C англискую\n  в чём суть режима minimax? -  это продуманный режим сделаный для мошьных pc. он использует алгоритм minimax с alpha-beta отсечением что делает его в 5 раз медленее bot2 но он может совершать хоть непродумынные ходы но они хорошо продуманны стратигически.\n\nесли что-то не поняли то нажмите 'да' в этом окошке.")
                                 if choice == "yes":
                                     choice = messagebox.askquestion("помошь по шахматам №6", "Расширения:\n"+''.join('- '+mode.name+'\n'+mode.discription+'\n' for mode in self.modes)+('их нет' if len(self.modes) == 0 else '')+'\nесли остались вопроссы нажмите "да"')
 
@@ -708,9 +732,42 @@ class game():
                 except:
                     base_snow_error()
             self.root.bind("<Control-u>",Control_u)
+            def Control_Alt_a(key):
+                self.snow_analiz_steps = not self.snow_analiz_steps
+            self.root.bind("<Control-Alt-a>",Control_Alt_a)
+            def exec_line(lines, i):
+                line = lines[i]
+                if not line.startswith('#'):
+                    if line.find('-')==-1:
+                        print("find err in line last exec:", repr(line))
+                        return
+                    ss, es = line.split('-')
+                    ssx, ssy = alphabet.find(ss[0]), int(ss[1])
+                    esx, esy = alphabet.find(es[0])-ssx, int(es[1])-ssy
+                    ssx += 1
+                    f = self.iscollide(v.Vector2(mas=[ssx, ssy]))
+                    if f is False:
+                        print("find err in pos figure on line:", repr(line))
+                        print("line:", i)
+                        return
+                    step = v.Vector2(mas=[esx, esy])
+                    step_figure(f, step)
+                if len(lines)>i+1:
+                    self.root.after(3000, exec_line, lines, i+1)
+            def press_p(key):
+                file = filedialog.askopenfilename(
+                                title="Выберите файл для открытия",
+                                filetypes=(("Text Files", "*.txt"),)
+                            )
+                if file:
+                    with open(file, encoding='utf-8') as f:
+                        text = f.read()
+                    lines = text.split('\n')
+                    exec_line(lines, 0)
+            self.root.bind("<Control-p>", press_p)
             def press_m(key):
-                self.mode = multiple_choice("Выбор режима","выберете режим:\n",['play','random','bot', 'bot2', 'bot2 vs bot2','bot_random']+[mode.name for mode in self.modes])
-                if self.mode not in ('play','random','bot', 'bot2', 'bot2 vs bot2','bot_random'):
+                self.mode = multiple_choice("Выбор режима","выберете режим:\n",['play','random','bot', 'bot2', 'minimax', 'bot2 vs bot2','bot_random']+[mode.name for mode in self.modes])
+                if self.mode not in ('play','random','bot', 'bot2', 'minimax', 'bot2 vs bot2','bot_random'):
                     for mode in self.modes:
                         if mode.name == self.mode:
                             mode.start()
@@ -727,18 +784,22 @@ class game():
             @contextmanager
             def imagine_step(ob, step):
                 last_pos = deepcopy(ob.pos)
+                # last_map = copy.copy(self.map)
+                target_pos = ob.pos + step
+                captured_figure = self.iscollide(target_pos)
+                if captured_figure and captured_figure.b != ob.b:
+                    self.map.remove(captured_figure)
+                else:
+                    captured_figure = None
+                    
                 try:
-                    ob.pos += step
-                except ValueError:
-                    pass
-                try:
+                    ob.pos = target_pos 
                     yield
                 finally:
                     ob.pos = last_pos
-                    # ob.pos -= step
-                    # print("imagine_step:", last_pos, ob.pos)
-                    # if last_pos != ob.pos:
-                    #     raise ValueError("is not good")
+                    # self.map = last_map
+                    if captured_figure:
+                        self.map.append(captured_figure)
 
             #функции бота
             def in_map(vec):
@@ -762,13 +823,6 @@ class game():
                         else:
                             return self.iscollide(pos)
                 return any(True for f in self.map if f.b !=ob.b and any(f.pos+v.Vector2(mas=step)==new_pos for step in get_steps(f,MyIscollide)))
-##                    for f in self.map:
-##                        if f.b!=ob.b:
-##                            
-##                            steps = get_steps(f,MyIscollide)
-##                            if any(f.pos+v.Vector2(mas=step)==new_pos for step in steps):
-##                                return True
-##                    return False
             def move_can_attak(ob,step,noname=False): # возращяет есть ли возможность отаковать фигуры после хода
                 # поменялось с да нет и с фигура нет на число
                 st_pos = ob.pos
@@ -777,14 +831,12 @@ class game():
                 steps = get_steps(ob)
                 if noname:
                     movs = {tuple(ob.pos+v.Vector2(mas=stepf)) for stepf in steps}
-                    best_figure = None
                     pice_best_figure = 0
                     if len(steps)!=0:
                         for f in self.map:
                             if f.b != ob.b and get_pice(f)>pice_best_figure and (tuple(f.pos) in movs):
                                 ob.pos = st_pos
                                 return True
-                    #otvet = any((True for f in self.map if f.b != ob.b and any((True for stepMyF in steps if f.pos==new_pos+v.Vector2(mas=stepMyF)))))
                 else:
                     movs = {tuple(ob.pos+v.Vector2(mas=stepf)) for stepf in steps}
                     def pice(f):
@@ -794,7 +846,7 @@ class game():
                     if len(steps)!=0:
                         for f in self.map:
                             if f.b != ob.b and pice(f)>pice_best_figure and (tuple(f.pos) in movs):
-                                best_figure = f
+                                # best_figure = f
                                 pice_best_figure = pice(ob)
                 ob.pos = st_pos
                 return pice_best_figure
@@ -820,8 +872,6 @@ class game():
                         else:
                             return self.iscollide(pos)
                 if noname:
-                    #not_b = (f for f in self.map if f.b != ob.b)
-                    #return any(True for f2 in self.map if f2.b == ob.b and (not (f2 is ob)) and any(True for f in not_b if any(True for stepf in get_steps(f,MyIscollide) if f.pos+v.Vector2(mas=stepf)==f2.pos)))
                     pos_whites = {tuple(f.pos) for f in self.map if f.b == ob.b and (f is not ob)}
                     for f2 in self.map:
                         if f2.b != ob.b and f2.pos != new_pos:
@@ -829,15 +879,9 @@ class game():
                             for stepf in steps:
                                 if tuple(f2.pos+v.Vector2(mas=stepf)) in pos_whites:
                                     return True
-                    #return any(True for f2 in self.map if f2.b == ob.b and (not (f2 is ob)) and any(True for f in self.map if f.b!=ob.b and any(f.pos+v.Vector2(mas=stepf)==f2.pos for stepf in get_steps(f,MyIscollide))))
                 else:
                     best_figure = None
                     best_pice = 0
-##                    for f2 in self.map:
-##                        if f2.b == ob.b and not (f2 is ob):
-##                            if any(True for f in self.map if f.b!=ob.b and any(f.pos+v.Vector2(mas=stepf)==f2.pos for stepf in get_steps(f,MyIscollide))) and get_pice(f2)>best_pice:
-##                                best_figure = f2
-##                                best_pice = get_pice(f2)
                     whites_pos = {tuple(f.pos): f.name for f in self.map if f.b == ob.b and (f is not ob)}
                     for f2 in self.map:
                         if f2.b != ob.b and (f2 is not ob) and f2.pos != new_pos:
@@ -848,13 +892,6 @@ class game():
                                     best_figure = name
                                     best_pice = get_npice(name)
                     return best_figure
-##                for f in self.map:
-##                    if f.b!=ob.b:
-##                        steps = get_steps(f,MyIscollide)
-##                        for f2 in self.map:
-##                            if f2.b == ob.b and f2 != ob:
-##                                if any(f.pos+v.Vector2(mas=stepf)==f2.pos for stepf in steps):
-##                                    return f2
                 
                 return False
             def move_protection(ob, step): #возвращяет будетли фигура засшищять после хода
@@ -885,12 +922,6 @@ class game():
                         else:
                             return self.iscollide(pos)
                 return any((True for f in self.map if f.b==ob.b and f != ob and any(True for stepf in get_steps(f,MyIscollide) if (f.pos+v.Vector2(mas=stepf)==new_pos))))
-##                    for f in self.map:
-##                        if f.b==ob.b and f != ob:
-##                            steps = get_steps(f,MyIscollide)
-##                            if any((f.pos+v.Vector2(mas=stepf)==new_pos) for stepf in steps):
-##                                return True
-##                    return False
             def get_steps_after_move(ob, step):
                 with imagine_step(ob, step):
                     return get_steps(ob)
@@ -1014,53 +1045,98 @@ class game():
                     ob.pos = pos_ob
                     return res
                 return 1
-            # def counter_poins(b):
-            #     return sum(0
-            #         +get_pice(ob)
-            #         +(3 if protection(ob) else 0)
-            #         -(len(get_steps(get_king(b)))*0.5)
-            #         for ob in self.map if ob.b==b
-            #     )
-            # class minimax_vars():
-            #     best_step = None
-            #     best_counter_step = None
-            # def minimax(ob=None, step=None, steps=3, first_step=None):
-            #     if step is None:
-            #         step = (0,0)
-            #     self.step = not self.step
-            #     with imagine_step(self.map[0] if step == (0,0) else ob, step):
-            #         all_steps = (
-            #             (ob, step)
-            #             for ob in self.map if ob.b == self.step
-            #             for step in get_steps(ob) if can_step(ob, step) and can_attak_king(ob, step)
-            #         )
-            #         for ob, step in all_steps:
-            #             if steps == 0:
-            #                 if self.step != first_step[0].b:
-            #                     self.step = first_step[0].b
-            #                 points = counter_poins(ob.b)
-            #                 if minimax_vars.best_counter_step is None or points>minimax_vars.best_counter_step:
-            #                     minimax_vars.best_step = first_step
-            #                     minimax_vars.best_counter_step = points
-            #                 continue
-            #             self.step = not self.step
-            #             res = minimax(ob, step, steps-1, (ob, step) if first_step is None else first_step)
-            #             if res:
-            #                 return res
-            #         if steps==0:
-            #             best_step = minimax_vars
-            #             minimax_vars.best_step = None
-            #             minimax_vars.best_counter_step = None
-            #             return best_step
             def is_checkmase(ob, step):
                 step = v.Vector2(mas=step)
                 with imagine_step(ob, step):
                     all_my_attack_pos = {tuple(ob.pos+v.Vector2(mas=step_attack)) for ob in self.map for step_attack in get_steps(ob) if ob.b==self.step and can_step(ob, step)}
                     k = get_king(not ob.b)
+                    if k is None:
+                        return True
                     return tuple(k.pos) in all_my_attack_pos and len([None for _ in get_steps(k) if can_step(k, v.Vector2(mas=_)) and tuple(k.pos+v.Vector2(mas=_)) not in all_my_attack_pos])==0
+            def curent_pos_plr(player):
+                return sum(0+
+                    (0.5*get_pice(f) if protection(f) else 0)-
+                    (get_pice(f) if attak(f) else 0)+
+                    (get_pice(f))
+                    # (1000 if not in_map(f.pos) else 0)
+                    for f in self.map if f.b == player
+                )
+            def eval_pos(player):
+                return curent_pos_plr(player)-curent_pos_plr(not player)
+            INFINITY = float('inf')
+            # Используем self.step (True/False) как идентификатор бота.
 
+            def minimax_fn():
+                """Главная функция для запуска бота. Запускает Минимакс."""
+                # Запускаем рекурсию с начальными границами
+                best_eval, best_step = minimax()
+                return best_step # Возвращаем лучший шаг
 
+            def minimax(player=None, depth=3, alpha=-INFINITY, beta=INFINITY):
+                """
+                Рекурсивный алгоритм Минимакс с Альфа-Бета отсечением, 
+                использующий ваши оригинальные функции.
+                """
+                #print('depth=', depth)
+                if player is None:
+                    player = self.step
+                
+                # 1. Базовый случай: Конец рекурсии или игры
+                if depth == 0 or get_king(player) is None: # Предполагается, что game_is_over() существует
+                    # Возвращаем ЧИСЛО (оценку) и None (для шага)
+                    return eval_pos(self.step), None # Оценка всегда с точки зрения ИСХОДНОГО бота (self.step)
 
+                best_eval = None
+                best_step = None
+                is_maximizing = (player == self.step) # Определяем, кто максимизирует на этом уровне
+
+                # 2. Генерация и перебор ходов (ваши оригинальные циклы)
+                for f in self.map:
+                    if f.b == player:
+                        steps = get_steps(f)
+                        for step in steps:
+                            step = v.Vector2(mas=step)
+                            if can_step(f, step):
+                                with imagine_step(f, step):
+                                    # 3. Рекурсивный вызов: получаем оценку ИЗ глубины
+                                    # Передаем текущие alpha и beta
+                                    eval_child, _ = minimax(not player, depth - 1, alpha, beta)
+                                    
+                                    # 4. Обновление лучшей оценки для текущего уровня (Max/Min логика)
+                                    if best_eval is None or (is_maximizing and eval_child > best_eval) or (not is_maximizing and eval_child < best_eval):
+                                        best_eval = eval_child
+                                        best_step = (f, step)
+                                    
+                                    # 5. ОБНОВЛЕНИЕ ГРАНИЦ АЛЬФА/БЕТА И ПРОВЕРКА ОТСЕЧЕНИЯ
+                                    if is_maximizing:
+                                        alpha = max(alpha, eval_child)
+                                    else:
+                                        beta = min(beta, eval_child)
+                                    
+                                    if beta <= alpha:
+                                        break # !!! Отсекаем !!!
+
+                return best_eval, best_step
+            def eval_steps(ob, steps):
+                return tuple((eval_step(ob, step) ,step) for step in steps)
+            def eval_step(ob, step):
+                return (1*
+                    (1.2 if ob.name == "пешка" else 1)*
+                    (1.1 * (ob.steps+1) if ob.name == "пешка" else 1)*
+                    (3 if ob.name == "пешка" and step[1]==2 else 1)*
+                    (6/(abs(ob.pos[0]-4)+1) if ob.name == "пешка" or ob.name == "конь" and sum(ob.steps for ob in self.map)<=6 else 1)*
+                    (5*give_path(ob, step))*
+                    (((1.1 if sum(ob.steps for ob in self.map)>6 else 1.5) * get_npice(move_protection(ob, step))) if move_protection(ob, step)!=None and move_protection(ob, step) != "король" and (not attak_move(ob,step)) else 1)*
+                    ((2 if sum(ob.steps for ob in self.map)>6 else 1.2) if ob.name != "король" and protection(ob,step) else 1)*
+                    (3*move_can_attak(ob,step) if move_can_attak(ob,step,noname=True) and (not attak_move(ob,step)) else 1)*
+                    (4  if end_path(ob) else 1)*                               
+                    ((5*get_pice(can_atack(ob,step))) if can_atack(ob,step) else 1)*
+                    ((0.5*get_pice(ob)/(get_pice(attak(ob)) if ob.name != "король" and protection(ob) else 1)) if attak(ob,noname=True) else 1)/  
+                    (5*get_npice(path_find(ob,step)) if path_find(ob,step,noname = True) else 1)/
+                    (5*get_pice(ob) if attak_move(ob,step) else 1)*
+                    (2*get_pice(ob) if move_danger(ob) else 1)/
+                    (2*get_pice(ob) if move_danger(ob, step) else 1)*
+                    (5 if is_checkmase(ob, step) else 1))
             def frame():
                 try:
                     if not self.victory and self.mode != "play" and (self.mode != 'bot2' or not self.step):
@@ -1105,25 +1181,7 @@ class game():
                                     if self.mode == "bot" or self.mode.startswith('bot2'):
                                         #print(f"start work: {ob}")
                                         m = [(tuple(f.pos), f.name) for f in self.map]
-                                        steps = tuple((1*
-                                                    (1.2 if ob.name == "пешка" else 1)*
-                                                    (1.1 * (ob.steps+1) if ob.name == "пешка" else 1)*
-                                                    (3 if ob.name == "пешка" and step[1]==2 else 1)*
-                                                    (6/(abs(ob.pos[0]-4)+1) if ob.name == "пешка" or ob.name == "конь" and sum(ob.steps for ob in self.map)<=6 else 1)*
-                                                    (5*give_path(ob, step))*
-                                                    (((1.1 if sum(ob.steps for ob in self.map)>6 else 1.5) * get_npice(move_protection(ob, step))) if move_protection(ob, step)!=None and move_protection(ob, step) != "король" and (not attak_move(ob,step)) else 1)*
-                                                    ((2 if sum(ob.steps for ob in self.map)>6 else 1.2) if ob.name != "король" and protection(ob,step) else 1)*
-                                                    (3*move_can_attak(ob,step) if move_can_attak(ob,step,noname=True) and (not attak_move(ob,step)) else 1)*
-                                                    (4  if end_path(ob) else 1)*                               
-                                                    ((5*get_pice(can_atack(ob,step))) if can_atack(ob,step) else 1)*
-                                                    ((0.5*get_pice(ob)/(get_pice(attak(ob)) if ob.name != "король" and protection(ob) else 1)) if attak(ob,noname=True) else 1)/  
-                                                    (5*get_npice(path_find(ob,step)) if path_find(ob,step,noname = True) else 1)/
-                                                    (5*get_pice(ob) if attak_move(ob,step) else 1)*
-                                                    (2*get_pice(ob) if move_danger(ob) else 1)/
-                                                    (2*get_pice(ob) if move_danger(ob, step) else 1)*
-                                                    (5 if is_checkmase(ob, step) else 1)
-                                                    ,step)
-                                                for step in steps)
+                                        steps = eval_steps(ob, steps)
                                         print('loop:', m == [(tuple(f.pos), f.name) for f in self.map])
                                         if self.mode.startswith('bot2'):
                                             # best = max(step_data[0] for step_data in steps)
@@ -1141,7 +1199,17 @@ class game():
                                         print("this is",path_find(ob,step,noname=True))
                                         print('died:',path_find(ob,step))
                                         step_figure(ob, step)
-                        if self.mode.startswith("bot2"):
+                        if self.mode == "minimax" and not self.step:
+                            pf = path_find(imit_figure(not ob.b))
+                            if pf == "король":
+                                self.histPos += self.hist.set(getStringSave(self),self.histPos)
+                                self.victory = True
+                                self.canvas.itemconfigure(self.label,text = ("белые победили" if self.step else "чёрные победили"))
+                            if not self.victory:
+                                answer = minimax_fn()
+                                step_figure(*answer)
+
+                        elif self.mode.startswith("bot2"):
                             pf = path_find(imit_figure(not ob.b))
                             if pf == "король":
                                 self.histPos += self.hist.set(getStringSave(self),self.histPos)
@@ -1164,6 +1232,7 @@ class game():
                         #     minimax()
                         gc.enable()
                 except:
+                    gc.enable()
                     messagebox.askokcancel("Error", "при работе основного цикла игры возникла ошибка. я открою консоль. отправь что в консоли автору шахмат и перезапусти игру что бы ошибка пропала. если хочешь продолжить и тебе неважно на ошибку то нажми Enter в консоли")
                     snow_error()
                     input()
@@ -1223,7 +1292,7 @@ def load_modes(folder='./modes'):
     return modes_exec
 if __name__ == "__main__":
     hide_console()
-    mode = multiple_choice("Выбор режима","выберете режим:\n",('play','random','bot', 'bot2', 'bot2 vs bot2','bot_random'))
+    mode = multiple_choice("Выбор режима","выберете режим:\n",('play','random','bot', 'bot2', 'minimax', 'bot2 vs bot2','bot_random'))
     messagebox.askquestion("Помошь по шахматам","help - Control-h")
     if messagebox.askyesno("Загрузить?","Загрузить файл?"):
         file = filedialog.askopenfilename(
