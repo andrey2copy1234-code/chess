@@ -1,7 +1,8 @@
 import tkinter as tk # библиотека для GUI
 import vector as v   # модуль для векторных операций
+# import ArrayC as v
+# v.__version__ = '3.0'
 __vVector__ = v.__version__ 
-#import ArrayC as v
 import math as m # матиматика
 from time import time,sleep # время
 from tkinter import filedialog,messagebox # мини окна
@@ -31,8 +32,8 @@ def is_comp(v, v2):
     print('small version')
     print('return False')
     return False
-versions_chess = {'2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8'}
-#вормат vChess: (vModule, vVector)
+versions_chess = {'2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9'}
+#вормат vChess: (vModule, vVector, vTkUtils)
 comp_table = {
     '2.1': ('2.0', '2.0'),
     '2.2': ('2.0', '2.0'),
@@ -42,6 +43,7 @@ comp_table = {
     '2.6': ('2.0', '2.0'),
     '2.7': ('2.0', '2.0'),
     '2.8': ('2.2', '2.0'),
+    '2.9': ('2.2', '2.0', '1.0'),
 }
 class problem_comp():
     def __init__(self, v1, v2, module):
@@ -59,16 +61,22 @@ class comp():
             self.why = why
         if briefly:
             self.briefly = briefly
-    def calc(self, vChess, vModule, vVector):
+    def calc(self, vChess, vModule, vVector, vTkUtils):
         if vChess in versions_chess:
             val = comp_table.get(vChess)
             if val:
-                vModule_comp, vVector_comp = val 
+                try:
+                    vModule_comp, vVector_comp = val 
+                    vTkUtils_comp = '0.0'
+                except:
+                    vModule_comp, vVector_comp, vTkUtils_comp = val 
                 problems = []
                 if not is_comp(vModule, vModule_comp):
                     problems.append(problem_comp(vModule_comp, vModule, 'chess_module'))
                 if not is_comp(vVector, vVector_comp):
                     problems.append(problem_comp(vVector_comp, vVector, 'vector'))
+                if not is_comp(vTkUtils, vTkUtils_comp):
+                    problems.append(problem_comp(vTkUtils_comp, vTkUtils, 'tkutils'))
                 if len(problems) != 0:
                     num_idn2 = num_ind(len(problems))
                     self.why = f"произошло {num_idn2} проблем{'a' if num_idn2[-1] == 'a' else ''}:"+''.join('\n*'+str(problem) for problem in problems)
@@ -79,7 +87,7 @@ class comp():
 
 def get_comp():
     comp_data = comp()
-    comp_data.calc(__version__, __vModule__, __vVector__)
+    comp_data.calc(__version__, __vModule__, __vVector__, __vTkUtils__)
     if comp_data.why == 'error' or comp_data.briefly == 'error':
         return "Error"
     return f"Данная версия ({__version__}) {'совместима' if comp_data.briefly else 'не совместима'} с модулями.\n {comp_data.why}"
@@ -108,12 +116,34 @@ v2.7
 
 v2.8
 Теперь bot2 и bot лучше думают. они теперь не думают об странных ходах из-за того что ещё теперь учитывают что ваши ходы и их ходы могут быть продуманны так что боты думают что ход хороший но на самом деле они забыли про то что могут съесть или вы можете съесть а они продумали ходы на перёд так поэтому. добавлен стратигически-продуманный режим minimax но он задуман как минимум пока что для мощьных PC так как он очень медленный. теперь минимальная версия модуля 2.2
+
+v2.9
+Теперь в игре появились уведомления. ну а точнее типо уведомления. пример:
+------------------------------------------
+-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+-x--Error:-Произошла проблемма-с-------x--
+-x--Интернетом.-Обновить-невозможно----x--
+-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--
+Типа теперь будут такие штуки в основном окне появлятся. они сигнализируют об ошибках и о шахе например
 """
-__version__ = '2.8'
+__version__ = '2.9'
 #size = 600
 heightButtons = 50
-from chess_module import *
-from chess_module import __version__ as __vModule__
+try:
+    from chess_module import *
+    from chess_module import __version__ as __vModule__
+except ImportError:
+    print("Произошла серьёзная ошибка. не найден chess_module. помните его нельзя переименоувать или пихать по папкам. попытайтесь скачать chess_module с github.\nКонсоль открыта на 30 секунд для вашего прочтения.")
+    th.Event().wait(30)
+except:
+    print("Произошла серьёзная ошибка. в chess_module оказалась ошибка. проверьте тот ли файл вы назвали chess_module тот ли что скачали с github. если это не так откатитесь до прошлой версии.\nКонсоль открыта на 30 секунд для вашего прочтения")
+    th.Event().wait(30)
+try:
+    from tkutils import __version__ as __vTkUtils__
+except ImportError:
+    print("tkutils не найден")
+except:
+    __vTkUtils__ = '0.0'
 
 def saveF(game):
     choice = multiple_choice("сохранение", "как вы хотите сохранить?\n", ('отмена','как файл', 'как видео'))
@@ -163,22 +193,26 @@ def the_window_all_close(window):
             window.destroy()
 col1 = "#ff0000"
 col2 = "#00ff00"
-class progresbar():
-    def __init__(self, x, y, width, height, canvas, base_color='green', color_progress=col2, color_no_progress=col1, padding=2):
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.canvas = canvas
-        self.padding = padding
-        self.base = canvas.create_rectangle(x,y,x+width,y+height, fill=base_color)
-        self.in_base = canvas.create_rectangle(x+padding,y+padding,x+width-padding,y+height-padding, fill=color_no_progress)
-        self.progress_display = canvas.create_rectangle(x,y,x,y+height, fill=color_progress)
-    def update(self, progress):
-        self.canvas.coords(self.progress_display, self.x+self.padding, self.y+self.padding, self.x+(self.width-self.padding)*progress, self.y+self.height-self.padding)
-    def destroy(self):
-        self.canvas.delete(self.base)
-        self.canvas.delete(self.progress_display)
+try:
+    from tkutils import progresbar, Message, Animate, AnimateType
+except:
+    pass
+# class progresbar():
+#     def __init__(self, x, y, width, height, canvas, base_color='green', color_progress=col2, color_no_progress=col1, padding=2):
+#         self.x = x
+#         self.y = y
+#         self.width = width
+#         self.height = height
+#         self.canvas = canvas
+#         self.padding = padding
+#         self.base = canvas.create_rectangle(x,y,x+width,y+height, fill=base_color)
+#         self.in_base = canvas.create_rectangle(x+padding,y+padding,x+width-padding,y+height-padding, fill=color_no_progress)
+#         self.progress_display = canvas.create_rectangle(x,y,x,y+height, fill=color_progress)
+#     def update(self, progress):
+#         self.canvas.coords(self.progress_display, self.x+self.padding, self.y+self.padding, self.x+(self.width-self.padding)*progress, self.y+self.height-self.padding)
+#     def destroy(self):
+#         self.canvas.delete(self.base)
+#         self.canvas.delete(self.progress_display)
     
 is_error = 0
 error_trace_back = None
@@ -300,7 +334,7 @@ def base_snow_error():
     messagebox.askokcancel("Error", "функция которую ты вызвал вызвала ошибку. я открою консоль. отправь что в консоли автору этих шахмат")
     snow_error()
 past_call = 0
-def update():
+def update(game):
     global past_call
     global files_update
 
@@ -336,42 +370,59 @@ def update():
                     return 1
                 except urllib.error.URLError as err:
                     if isinstance(err.reason, TimeoutError):
-                        messagebox.askokcancel("Error", "Превышенно время ожидания ответа от сервера.")
+                        game.display_notification("Error: Превышенно время ожидания ответа от сервера.", ImportanceNotificationType.ERROR, 2.5)
                     else:
-                        messagebox.askokcancel("Error", "Произошла ошибка сети.")
+                        game.display_notification("Error: Произошла ошибка сети.", ImportanceNotificationType.ERROR, 2.5)
                     return 1
                 if code_err == 404:
-                    messagebox.askokcancel("Error", "Сервер сказал что на нём нет файла который нужен для обновления")
+                    game.display_notification("Error: Сервер сказал что на нём нет файла который нужен для обновления", ImportanceNotificationType.ERROR, 2.5)
                     return 1
                 elif code_err != 200:
-                    messagebox.askokcancel("Error", "Сервер дал странный код возврата сигнализируюший о какой-то ошибке")
+                    messagebox.askokcancel(f"Error: Сервер дал странный код возврата сигнализируюший о какой-то ошибке (code {code_err})", ImportanceNotificationType.ERROR, 2.5)
                     return 1
                 try:
                     json_string = json_bytes.decode('utf-8')
                     files_update = json.loads(json_string)
                 except:
-                    messagebox.askokcancel(f"Error", "Клиенту не удалось распознать ответ сервера.")
+                    game.display_notification("Error: Клиенту не удалось распознать ответ сервера.", ImportanceNotificationType.ERROR, 2.5)
                     return 1
                 if type(files_update) is not list or not all(type(file) is str for file in files_update):
-                    messagebox.askokcancel("Error", "Клиент не понял странный ответ сервера.")
+                    game.display_notification("Error: Клиент не понял странный ответ сервера.", ImportanceNotificationType.ERROR, 2.5)
                     return 1
                 print("loaded:", f"{{'files_update': {files_update}}}")
             try:
                 paralel_for_updating(update_file_from_github, files_update, dir_files)
             except:
-                messagebox.askokcancel("Error", "новая функция вызвала ошибку. я открою консоль. отправь что в консоли автору")
+                game.display_notification("Error: Новая функция вызвала ошибку. я открою консоль. отправь что в консоли автору", ImportanceNotificationType.ERROR, 5)
                 snow_error()
             if dir_files == "./":
                 os.execv(sys.executable, [sys.executable] + sys.argv)
     else:
-        messagebox.askyesno("Совет", "Лучше сейчас не обновлять. так обновляя можно превысить лимиты запросов к github API")
+        game.display_notification("Совет: Лучше сейчас не обновлять. так обновляя можно превысить лимиты запросов к github API", ImportanceNotificationType.WARN, 0.5)
         return 1
 # update()
 # exit(0)
-
+class ImportanceNotificationType:
+    BASE = 0
+    WARN = 1
+    DEBUG = 2
+    ERROR = 3
+class ImportanceNotificationLogic:
+    color_map = {
+        ImportanceNotificationType.BASE: "#1a8f1a",
+        ImportanceNotificationType.WARN: "#d5b91d",
+        ImportanceNotificationType.DEBUG: "#774d4d",
+        ImportanceNotificationType.ERROR: "#cb1c1c",
+    }
+    @classmethod
+    def to_color(cls, importance):
+        try:
+            return cls.color_map[importance]
+        except KeyError:
+            raise ValueError("is not Importance")
 
 class game():
-    __slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory','steps','hist','histPos','speed','text','mode', 'modes', 'snow_analiz_steps')
+    __slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory','steps','hist','histPos','speed','text','mode', 'modes', 'snow_analiz_steps', 'on_click_fns', 'displaying_ntfct')
     #__slots__ = ('root','map','mode','Frames','step','label','canvas','pictures','highlighted','file','victory')
     def __init__(self,mode,file,text):
         self.root = tk.Tk()
@@ -409,7 +460,71 @@ class game():
         self.histPos = 1
         self.file = file
         self.snow_analiz_steps = False
+        self.on_click_fns = []
+        self.displaying_ntfct = False
         self.load_modes()
+    def display_notification(self, message, importance=ImportanceNotificationType.BASE, after_seconds=1, time_apper=0.2, buttons=None):
+        if buttons is None:
+            buttons = [("Ok", "#00ff00", lambda: True)]
+        if self.displaying_ntfct:
+            self.displaying_ntfct = False
+            self.root.after(20, self.display_notification(message, importance, after_seconds, time_apper, buttons))
+            return
+        self.root.focus_force()
+        self.displaying_ntfct = True
+        offset = size/10+50
+        ms = Message(self.canvas, message, size/2-size/4, 5-offset, size/2, size/10, color=ImportanceNotificationLogic.to_color(importance))
+        msbs = [Message(x=size/2-size/4+(size/10)*i, y=5-offset+size/10-size/20-5, canvas=self.canvas, sy=size/20, sx=size/12, color=color, text=b, deg=5) for i, (b, color, fn) in enumerate(buttons)]
+        def fn(fn2, x, y, xs, ys):
+            def decor(posT):
+                if posT.x>=x and posT.x<=x+xs and posT.y<=y and posT.y>=y+ys:
+                    if fn2():
+                        ms.delete()
+                        for msb in msbs:
+                            msb.delete()
+                    return True
+            return decor
+        self.on_click_fns.extend(fn(fn2, msbs[i].x, msbs[i].y, msbs[i].sx, msbs[i].sy) for i, (b, color, fn2) in enumerate(buttons))
+        anim_start = Animate(self.root, time_apper, AnimateType.SIN)
+        anim_end = Animate(self.root, time_apper, AnimateType.SIN)
+        def fanim_end(proc):
+            try:
+                if not self.displaying_ntfct:
+                    ms.delete()
+                    for msb in msbs:
+                        msb.delete()
+                    return
+                ms.y = 5-offset*proc
+                ms.update()
+                for msb in msbs:
+                    msb.y = 5-offset*proc+size/10-size/20-5
+                    msb.update()
+                if proc==1:
+                    ms.delete()
+                    for msb in msbs:
+                        msb.delete()
+                    self.displaying_ntfct = False
+            except tk.TclError:
+                return
+        def fanim_start(proc):
+            if not self.displaying_ntfct:
+                ms.delete()
+                for msb in msbs:
+                    msb.delete()
+                return
+            try:
+                ms.y = 5-offset*(1-proc)
+                ms.update()
+                for msb in msbs:
+                    msb.y = 5-offset*(1-proc)+size/10-size/20-5
+                    msb.update()
+                if proc==1:
+                    self.root.after(int(after_seconds*1000), continuation)
+            except tk.TclError:
+                return
+        def continuation():
+            anim_end.handle(fanim_end)
+        anim_start.handle(fanim_start)
     def create_figure(self,*args,**kvargs):
         self.map.append(figure(self.root,self.canvas,self.pictures,self.iscollide,*args,**kvargs))
     def move_figure(self, idF, step):
@@ -552,6 +667,9 @@ class game():
                         self.canvas.itemconfigure(self.label,text = ("ходят белые" if self.step else "ходят чёрные"))
                         openV(game, file)
             def clickReal(posT):
+                for fn in self.on_click_fns:
+                    if fn(posT):
+                        return
                 if not self.victory and (self.mode != "random"):
                     pos = v.Vector2(mas=posT)//(size/8)+v.Vector2(mas=(1,1))
                     #print(pos)
@@ -573,7 +691,7 @@ class game():
                                     self.canvas.itemconfigure(self.label,text = ("белые победили" if self.step else "чёрные победили"))
                                     self.victory = True
                                 self.map.remove(f)
-                            self.highlighted.step(ob.move)
+                            self.highlighted.step(ob.move) 
                             self.canvas.lift(self.label)
                             if self.mode == "NN teach":
                                 try:
@@ -594,6 +712,8 @@ class game():
                                 data.append(in_nn(step_data))
                                 file.write(json.dumps(data))
                                 file.close()
+                            if get_king(not self.highlighted.b) and self.mode=="play" and attak(get_king(not self.highlighted.b)):
+                               self.display_notification("Шах", ImportanceNotificationType.WARN)
                             if self.mode != "bot" and self.mode != "bot2" and self.mode != 'minimax':
                                 self.step = not self.step
                                 if s:
@@ -639,7 +759,6 @@ class game():
                                 for frame in self.Frames:
                                     if frame.eval_step_frame:
                                         self.canvas.lift(frame.eval_step_frame)
-                                            
                                 return None
                     for frame in self.Frames:
                         self.canvas.delete(frame.Frame)
@@ -728,7 +847,7 @@ class game():
             self.root.bind("<Control-M>",Control_Shift_m)
             def Control_u(key):
                 try:
-                    update()
+                    update(self)
                 except:
                     base_snow_error()
             self.root.bind("<Control-u>",Control_u)
@@ -778,6 +897,34 @@ class game():
                 self.histPos += self.hist.set(getStringSave(self))
                 print(self.histPos)
             self.root.bind("<c>",clear_hist)
+            def debug_mode(key):
+                print("debug_mode start")
+                snow_console()
+                code = simpledialog.askstring('debug', 'commands:')
+                lines = code.split('\\'*2)
+                def next_iter(i=0):
+                    if len(lines)<=i:
+                        return
+                    line = lines[i]
+                    parts = line.split(' ')
+                    command = parts[0]
+                    args = parts[1:]
+                    match command:
+                        case "dis":
+                            importance = []
+                            if len(args)==2:
+                                importance.append(getattr(ImportanceNotificationType, args[1].upper()))
+                            self.display_notification(args[0], *importance)
+                        case "wait":
+                            self.root.after(int(args[0]), next_iter, i+1)
+                            return
+                        case "exec_py":
+                            exec(' '.join(args))
+                        
+                    self.root.after(0, next_iter, i+1)
+                next_iter()
+                    
+            self.root.bind("<Control-d>",debug_mode)
             #curcle
             #вспомогательные менеджеры контента
             from contextlib import contextmanager
@@ -1171,7 +1318,7 @@ class game():
                         #                     step_figure(f, steps[res[0]%len(steps)])
                         #     except:
                         #         pass
-
+                        t = time()
                         for ob in self.map:
                             if (((self.mode == "random" or self.mode == "bot2 vs bot2") and ob.b == self.step) or ((self.mode == "bot_random" or self.mode == "bot" or self.mode == "bot2") and ob.b == False and self.step==False)) and (True if self.mode == "bot" or self.mode == "bot2" else randint(1,len(self.map)//8)==1):
                                 steps = get_steps(ob)
@@ -1199,6 +1346,8 @@ class game():
                                         print("this is",path_find(ob,step,noname=True))
                                         print('died:',path_find(ob,step))
                                         step_figure(ob, step)
+                                        if self.mode=="bot" and get_king(self.highlighted.b) and attak(get_king(self.highlighted.b)):
+                                            self.display_notification("Шах", ImportanceNotificationType.WARN)
                         if self.mode == "minimax" and not self.step:
                             pf = path_find(imit_figure(not ob.b))
                             if pf == "король":
@@ -1228,6 +1377,9 @@ class game():
                                 else:
                                     self.victory = True
                                     self.canvas.itemconfigure(self.label,text = ("белые победили" if not self.step else "чёрные победили"))
+                                print(time()-t, 'seconds on step')
+                            if get_king(self.highlighted.b) and attak(get_king(self.highlighted.b)):
+                               self.display_notification("Шах", ImportanceNotificationType.WARN)
                         # if self.mode == "bot3":
                         #     minimax()
                         gc.enable()
